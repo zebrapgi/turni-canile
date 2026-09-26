@@ -325,22 +325,25 @@ if menu == "📅 Inserisci":
         with col2:
             st.markdown(f"**Orario per {fascia}:**")
             
+            chiave_inizio = f"ora_inizio_{fascia.lower()}"
+            chiave_fine = f"ora_fine_{fascia.lower()}"
+            
             if fascia == "Mattina":
-                default_inizio = time(8, 30)
-                default_fine = time(12, 0)
+                def_inizio = time(8, 30)
+                def_fine = time(12, 0)
             else:
-                default_inizio = time(14, 30)
-                default_fine = time(18, 0)
+                def_inizio = time(14, 30)
+                def_fine = time(18, 0)
 
             col_ora1, col_ora2 = st.columns(2)
             with col_ora1:
-                ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_{fascia.lower()}")
+                ora_inizio = st.time_input("Da:", value=def_inizio, key=chiave_inizio)
             
             senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)")
 
             with col_ora2:
                 if not senza_fine:
-                    ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_{fascia.lower()}")
+                    ora_fine = st.time_input("A:", value=def_fine, key=chiave_fine)
                 else:
                     st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
             
