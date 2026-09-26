@@ -46,6 +46,10 @@ def carica_da_firestore(collezione_nome, default_val):
             if "lista" in data:
                 return data["lista"].get("elementi", default_val)
             return default_val
+        elif collezione_nome == "volontari":
+            if "lista" in data:
+                return data["lista"].get("elementi", default_val)
+            return default_val
         elif collezione_nome == "lpu_data":
             return data if data else default_val
         elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
@@ -83,6 +87,17 @@ if "cani" not in st.session_state:
         ]
         st.session_state.cani = default_cani
         db.collection("cani").document("lista").set({"elementi": default_cani})
+
+if "volontari_db" not in st.session_state:
+    volontari_caricati = carica_da_firestore("volontari", None)
+    if volontari_caricati and isinstance(volontari_caricati, list):
+        st.session_state.volontari_db = volontari_caricati
+    else:
+        # Se non esiste, estraiamo inizialmente dai turni storici per non perdere nessuno
+        turni_temp = carica_da_firestore("turni", [])
+        nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
+        st.session_state.volontari_db = nomi_iniziali
+        db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
 
 if "lpu_data" not in st.session_state:
     lpu_caricati = list(db.collection("lpu_data").stream())
@@ -227,7 +242,7 @@ with st.container():
     cani_scoperti_oggi = [c for c in st.session_state.cani if c not in cani_coperti_oggi]
 
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
-        with st.expander("🔔 Avvisi Canile del Giorno", expanded=True):
+        with st.expander("🔔 Avis Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE IN ALTO ---
@@ -240,7 +255,7 @@ opzioni_base = [
 ]
 
 if st.session_state.is_admin:
-    opzioni_menu = opzioni_base + ["🛠️ Gestione LPU (Admin)"]
+    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)"]
 else:
     opzioni_menu = opzioni_base
 
@@ -255,13 +270,7 @@ if is_weekend_o_venerdi_sera:
     )
 
 def get_lista_volontari():
-    turni_esistenti = carica_da_firestore("turni", [])
-    nomi = set()
-    for t in turni_esistenti:
-        nome = t.get("volontario", "").strip()
-        if nome:
-            nomi.add(nome)
-    return sorted(list(nomi))
+    return sorted(list(set(st.session_state.volontari_db)))
 
 def get_cani_frequenti_volontario(nome_volontario):
     if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
@@ -301,9 +310,11 @@ if menu == "📅 Inserisci":
     scelta_volontario_dropdown = st.selectbox("Seleziona o inserisci il tuo Nome e Cognome:", scelte_volontario, key="selettore_nome_principale")
     
     volontario_finale = ""
+    is_nuovo_volontario = False
     if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
         volontario_nuovo_input = st.text_input("Scrivi qui il tuo Nome e Cognome:", key="input_nuovo_volontario_libero")
         volontario_finale = volontario_nuovo_input.strip()
+        is_nuovo_volontario = True
     elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
         volontario_finale = scelta_volontario_dropdown
 
@@ -325,7 +336,6 @@ if menu == "📅 Inserisci":
             key="selettore_fascia_form"
         )
 
-    # Gestione dinamica degli orari predefiniti in base alla fascia selezionata
     if fascia == "Mattina":
         default_inizio = time(8, 30)
         default_fine = time(12, 0)
@@ -341,7 +351,6 @@ if menu == "📅 Inserisci":
 
         col_ora1, col_ora2 = st.columns(2)
         with col_ora1:
-            # Chiave dinamica legata alla fascia per forzare l'aggiornamento immediato in Streamlit
             ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_dinamica_{fascia}")
         
         senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
@@ -409,6 +418,11 @@ if menu == "📅 Inserisci":
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
             else:
+                # Salvataggio automatico del nuovo volontario nell'anagrafica se non esiste
+                if volontario_finale not in st.session_state.volontari_db:
+                    st.session_state.volontari_db.append(volontario_finale)
+                    db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+
                 lista_turni = carica_da_firestore("turni", [])
                 
                 volontario_normalizzato = volontario_finale.strip().lower()
@@ -587,7 +601,7 @@ elif menu == "👀 Panoramica":
                                                         "giorno": t["giorno"],
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
-                                                        "cani_fatti": nuovi_cani,
+                                                        "cani_fatti": nuevos_cani if 'nuevos_cani' in locals() else nuovi_cani,
                                                         "note": nuove_note
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
@@ -655,6 +669,38 @@ elif menu == "🐶 Cani":
                         st.session_state.cani.remove(dog)
                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                         st.success(f"Cane '{dog}' eliminato.")
+                        st.rerun()
+
+elif menu == "👥 Volontari":
+    st.header("Gestione Anagrafica Volontari")
+
+    if not st.session_state.is_admin:
+        st.warning("🔒 Area riservata agli amministratori.")
+    else:
+        st.markdown("Visualizza l'elenco dei volontari registrati, rimuovi chi non frequenta più o correggi i nomi.")
+
+        new_vol = st.text_input("Aggiungi manualmente un volontario:")
+        if st.button("Aggiungi Volontario"):
+            if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
+                st.session_state.volontari_db.append(new_vol.strip())
+                db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                st.success(f"Volontario '{new_vol}' aggiunto con successo!")
+                st.rerun()
+            elif new_vol.strip() in st.session_state.volontari_db:
+                st.warning("Questo volontario è già presente nella lista.")
+
+        st.subheader("Lista attuale dei volontari registrati:")
+        for vol in sorted(st.session_state.volontari_db):
+            col_v1, col_v2 = st.columns([4, 1])
+            with col_v1:
+                st.write(f"👤 **{vol}**")
+            with col_v2:
+                with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
+                    st.write(f"Confermi l'eliminazione di {vol}?")
+                    if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
+                        st.session_state.volontari_db.remove(vol)
+                        db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                        st.success(f"Volontario '{vol}' eliminato.")
                         st.rerun()
 
 elif menu == "📊 Statistiche":
