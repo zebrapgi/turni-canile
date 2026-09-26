@@ -100,19 +100,25 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# Inizializzazione stato per gli orari dinamici della sezione Inserisci
+# --- INIZIALIZZAZIONE STATO ORARI DINAMICI ---
 if "ora_inizio_val" not in st.session_state:
     st.session_state.ora_inizio_val = time(8, 30)
 if "ora_fine_val" not in st.session_state:
     st.session_state.ora_fine_val = time(12, 0)
 
 def aggiorna_orari_default():
-    if st.session_state.get("selettore_fascia_form", "Mattina") == "Mattina":
+    fascia_corrente = st.session_state.get("selettore_fascia_form", "Mattina")
+    if fascia_corrente == "Mattina":
         st.session_state.ora_inizio_val = time(8, 30)
         st.session_state.ora_fine_val = time(12, 0)
     else:
         st.session_state.ora_inizio_val = time(14, 30)
         st.session_state.ora_fine_val = time(18, 0)
+        
+    if "input_ora_inizio_dinamico" in st.session_state:
+        del st.session_state["input_ora_inizio_dinamico"]
+    if "input_ora_fine_dinamico" in st.session_state:
+        del st.session_state["input_ora_fine_dinamico"]
 
 # --- GESTIONE ORARIO ITALIANO ESATTO ---
 tz_italia = pytz.timezone("Europe/Rome")
@@ -323,9 +329,7 @@ if menu == "📅 Inserisci":
 
     st.markdown("---")
 
-    st.markdown("### 🕒 2. Dettagli Turno e Cani")
     col_f1, col_f2 = st.columns(2)
-
     with col_f1:
         giorno = st.selectbox(
             "Giorno della settimana:",
@@ -342,6 +346,7 @@ if menu == "📅 Inserisci":
         )
 
     with st.form("form_turno"):
+        st.markdown("### 🕒 2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
 
         with col1:
