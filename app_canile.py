@@ -315,23 +315,28 @@ if menu == "📅 Inserisci":
                     "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
                 ],
             )
-            fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"])
+            fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"], key="selettore_fascia_form")
 
         with col2:
             st.markdown(f"**Orario per {fascia}:**")
             
-            default_inizio = time(8, 30) if fascia == "Mattina" else time(14, 30)
-            default_fine = time(12, 0) if fascia == "Mattina" else time(18, 0)
+            # Gestione dinamica degli orari predefiniti in base alla fascia scelta
+            if fascia == "Mattina":
+                default_inizio = time(8, 30)
+                default_fine = time(12, 0)
+            else:
+                default_inizio = time(14, 30)
+                default_fine = time(18, 0)
 
             col_ora1, col_ora2 = st.columns(2)
             with col_ora1:
-                ora_inizio = st.time_input("Da:", value=default_inizio)
+                ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_{fascia.lower()}")
             
             senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)")
 
             with col_ora2:
                 if not senza_fine:
-                    ora_fine = st.time_input("A:", value=default_fine)
+                    ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_{fascia.lower()}")
                 else:
                     st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
             
