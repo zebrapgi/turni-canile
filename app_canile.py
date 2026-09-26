@@ -188,7 +188,7 @@ with st.sidebar:
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- FUNZIONE INTERVALLI SETTIMANE (Spostata qui in alto) ---
+# --- FUNZIONE INTERVALLI SETTIMANE ---
 def get_intervalli_settimane():
     oggi = datetime.now(tz_italia)
     lunedi_corrente = oggi - timedelta(days=oggi.weekday())
@@ -214,7 +214,6 @@ with st.container():
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    # Filtro corretto per considerare solo i turni di OGGI nella SETTIMANA CORRENTE
     turni_oggi = [
         t for t in turni_notifiche 
         if t.get("giorno") == giorno_oggi_str and t.get("settimana") == label_corr
