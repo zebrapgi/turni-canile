@@ -100,6 +100,20 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
+# Inizializzazione stato per gli orari dinamici della sezione Inserisci
+if "ora_inizio_val" not in st.session_state:
+    st.session_state.ora_inizio_val = time(8, 30)
+if "ora_fine_val" not in st.session_state:
+    st.session_state.ora_fine_val = time(12, 0)
+
+def aggiorna_orari_default():
+    if st.session_state.get("selettore_fascia_form", "Mattina") == "Mattina":
+        st.session_state.ora_inizio_val = time(8, 30)
+        st.session_state.ora_fine_val = time(12, 0)
+    else:
+        st.session_state.ora_inizio_val = time(14, 30)
+        st.session_state.ora_fine_val = time(18, 0)
+
 # --- GESTIONE ORARIO ITALIANO ESATTO ---
 tz_italia = pytz.timezone("Europe/Rome")
 adesso = datetime.now(tz_italia)
@@ -309,38 +323,39 @@ if menu == "📅 Inserisci":
 
     st.markdown("---")
 
+    st.markdown("### 🕒 2. Dettagli Turno e Cani")
+    col_f1, col_f2 = st.columns(2)
+
+    with col_f1:
+        giorno = st.selectbox(
+            "Giorno della settimana:",
+            [
+                "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
+            ],
+        )
+    with col_f2:
+        fascia = st.selectbox(
+            "Fascia oraria:", 
+            ["Mattina", "Pomeriggio"], 
+            key="selettore_fascia_form",
+            on_change=aggiorna_orari_default
+        )
+
     with st.form("form_turno"):
-        st.markdown("### 🕒 2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
 
         with col1:
-            giorno = st.selectbox(
-                "Giorno della settimana:",
-                [
-                    "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
-                ],
-            )
-            fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"], key="selettore_fascia_form")
-
-        with col2:
             st.markdown(f"**Orario per {fascia}:**")
-            
-            if fascia == "Mattina":
-                default_inizio = time(8, 30)
-                default_fine = time(12, 0)
-            else:
-                default_inizio = time(14, 30)
-                default_fine = time(18, 0)
 
             col_ora1, col_ora2 = st.columns(2)
             with col_ora1:
-                ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_{fascia.lower()}")
+                ora_inizio = st.time_input("Da:", value=st.session_state.ora_inizio_val, key="input_ora_inizio_dinamico")
             
             senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)")
 
             with col_ora2:
                 if not senza_fine:
-                    ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_{fascia.lower()}")
+                    ora_fine = st.time_input("A:", value=st.session_state.ora_fine_val, key="input_ora_fine_dinamico")
                 else:
                     st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
             
@@ -349,6 +364,7 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
+        with col2:
             note = st.text_area("Note aggiuntive (opzionale):")
 
         cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
