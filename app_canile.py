@@ -341,13 +341,14 @@ if menu == "📅 Inserisci":
 
         col_ora1, col_ora2 = st.columns(2)
         with col_ora1:
-            ora_inizio = st.time_input("Da:", value=default_inizio, key="ora_inizio_dinamica")
+            # Chiave dinamica legata alla fascia per forzare l'aggiornamento immediato in Streamlit
+            ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_dinamica_{fascia}")
         
         senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
 
         with col_ora2:
             if not senza_fine:
-                ora_fine = st.time_input("A:", value=default_fine, key="ora_fine_dinamica")
+                ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_dinamica_{fascia}")
             else:
                 st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
         
