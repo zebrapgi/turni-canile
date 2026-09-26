@@ -188,6 +188,23 @@ with st.sidebar:
                 st.session_state.is_admin = False
                 st.rerun()
 
+# --- FUNZIONE INTERVALLI SETTIMANE (Spostata qui in alto) ---
+def get_intervalli_settimane():
+    oggi = datetime.now(tz_italia)
+    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
+    domenica_corrente = lunedi_corrente + timedelta(days=6)
+
+    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
+    domenica_prossima = domenica_corrente + timedelta(days=7)
+
+    fmt = "%d/%m/%Y"
+    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
+    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
+
+    return str_corr, str_pros
+
+label_corr, label_pros = get_intervalli_settimane()
+
 # --- INTESTAZIONE PRINCIPALE ---
 st.title("🐾 Turni Canile")
 
@@ -197,7 +214,12 @@ with st.container():
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    turni_oggi = [t for t in turni_notifiche if t.get("giorno") == giorno_oggi_str]
+    # Filtro corretto per considerare solo i turni di OGGI nella SETTIMANA CORRENTE
+    turni_oggi = [
+        t for t in turni_notifiche 
+        if t.get("giorno") == giorno_oggi_str and t.get("settimana") == label_corr
+    ]
+    
     cani_coperti_oggi = set()
     for t in turni_oggi:
         for c in t.get("cani_fatti", []):
@@ -225,22 +247,6 @@ else:
 
 menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 st.markdown("---")
-
-def get_intervalli_settimane():
-    oggi = datetime.now(tz_italia)
-    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
-    domenica_corrente = lunedi_corrente + timedelta(days=6)
-
-    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
-    domenica_prossima = domenica_corrente + timedelta(days=7)
-
-    fmt = "%d/%m/%Y"
-    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
-    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
-
-    return str_corr, str_pros
-
-label_corr, label_pros = get_intervalli_settimane()
 
 if is_weekend_o_venerdi_sera:
     st.warning(
@@ -320,7 +326,6 @@ if menu == "📅 Inserisci":
         with col2:
             st.markdown(f"**Orario per {fascia}:**")
             
-            # Gestione dinamica degli orari predefiniti in base alla fascia scelta
             if fascia == "Mattina":
                 default_inizio = time(8, 30)
                 default_fine = time(12, 0)
