@@ -187,8 +187,7 @@ with st.sidebar:
         st.image("icona.jpg", width=80)
     
     st.title("🐾 Menu Rapido")
-    
-    with st.expander("🔍 Cerca i miei turni", expanded=False):
+   with st.expander("🔍 Cerca i miei turni", expanded=False):
         turni_esistenti_side = carica_turni_normalizzati()
         nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
         
@@ -212,9 +211,7 @@ with st.sidebar:
                     s_label = info_sett.get(s_key, f"Settimana {s_key}")
                     
                     st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
-                    st.markdown("---")
-
-    st.markdown("---")
+            st.markdown("---")
 
     with st.expander("🎛️ Filtra Panoramica", expanded=False):
         tutti_i_cani_presenti = sorted(list(st.session_state.cani))
