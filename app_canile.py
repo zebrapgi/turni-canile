@@ -187,31 +187,34 @@ with st.sidebar:
         st.image("icona.jpg", width=80)
     
     st.title("🐾 Menu Rapido")
-with st.expander("🔍 Cerca i miei turni", expanded=False):
-    turni_esistenti_side = carica_turni_normalizzati()
-    nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
     
-    if not nomi_side:
-        st.info("Nessun turno registrato nel sistema.")
-    else:
-        nome_cercato_side = st.selectbox("Seleziona il tuo nome:", nomi_side, key="selettore_miei_turni_sidebar")
-        turni_pers_side = [t for t in turni_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
+    with st.expander("🔍 Cerca i miei turni", expanded=False):
+        turni_esistenti_side = carica_turni_normalizzati()
+        nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
         
-        if not turni_pers_side:
-            st.write("Nessun turno trovato.")
+        if not nomi_side:
+            st.info("Nessun turno registrato nel sistema.")
         else:
-            for tp in turni_pers_side:
-                cani_str = ", ".join(tp.get("cani_fatti", []))
-                if cani_str:
-                    dettaglio_str = f"🐾 [{cani_str}]"
-                else:
-                    dettaglio_str = "🧹 *Pulizie / LPU*"
-                
-                s_key = tp.get("settimana_chiave", tp.get("settimana"))
-                s_label = info_sett.get(s_key, f"Settimana {s_key}")
-                
-                st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
-        st.markdown("---")
+            nome_cercato_side = st.selectbox("Seleziona il tuo nome:", nomi_side, key="selettore_miei_turni_sidebar")
+            turni_pers_side = [t for t in turni_esistenti_side if t.get("volontario", "").strip().lower() == nome_cercato_side.lower()]
+            
+            if not turni_pers_side:
+                st.write("Nessun turno trovato.")
+            else:
+                for tp in turni_pers_side:
+                    cani_str = ", ".join(tp.get("cani_fatti", []))
+                    if cani_str:
+                        dettaglio_str = f"🐾 [{cani_str}]"
+                    else:
+                        dettaglio_str = "🧹 *Pulizie / LPU*"
+                    
+                    s_key = tp.get("settimana_chiave", tp.get("settimana"))
+                    s_label = info_sett.get(s_key, f"Settimana {s_key}")
+                    
+                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
+                    st.markdown("---")
+
+    st.markdown("---")
 
     with st.expander("🎛️ Filtra Panoramica", expanded=False):
         tutti_i_cani_presenti = sorted(list(st.session_state.cani))
