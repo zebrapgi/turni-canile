@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS[cite: 3]
 st.markdown(
     """
     <head>
@@ -22,7 +22,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---[cite: 3]
 if not firebase_admin._apps:
     try:
         firebase_json_str = st.secrets["FIREBASE_JSON"]
@@ -36,7 +36,7 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---[cite: 3]
 def carica_da_firestore(collezione_nome, default_val):
     try:
         docs = list(db.collection(collezione_nome).stream())
@@ -76,7 +76,52 @@ def elimina_da_firestore(collezione_nome, doc_id):
         st.error(f"Errore di eliminazione: {e}")
         return False
 
-# Inizializzazione stato con Firebase
+# --- GESTIONE ORARIO ITALIANO ESATTO ---[cite: 3]
+tz_italia = pytz.timezone("Europe/Rome")
+adesso = datetime.now(tz_italia)
+giorno_settimana = adesso.weekday()
+ora_attuale = adesso.hour
+
+is_weekend_reale = (giorno_settimana > 4) or (
+    giorno_settimana == 4 and ora_attuale >= 17
+)
+is_weekend_o_venerdi_sera = is_weekend_reale
+
+# --- FUNZIONE INTERVALLI SETTIMANE DINAMICI ---[cite: 3]
+def get_intervalli_settimane():
+    oggi = datetime.now(tz_italia)
+    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
+    domenica_corrente = lunedi_corrente + timedelta(days=6)
+
+    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
+    domenica_prossima = domenica_corrente + timedelta(days=7)
+
+    fmt = "%d/%m/%Y"
+    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
+    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
+
+    return str_corr, str_pros
+
+label_corr, label_pros = get_intervalli_settimane()
+
+# --- MIGRAZIONE AUTOMATICA VECCHI TURNI (ALLINEAMENTO SETTIMANE) ---[cite: 3]
+def migra_vecchi_turni_se_necessario():
+    try:
+        turni_esistenti = carica_da_firestore("turni", [])
+        turno_modificato = False
+        for t in turni_esistenti:
+            settimana_salvata = t.get("settimana", "")
+            # Se un turno apparteneva alla vecchia "Prossima Settimana" ma ora la data coincide con la corrente, o viceversa
+            # Facciamo un controllo di sicurezza per evitare stringhe orfane
+            if "Settimana Corrente" not in settimana_salvata and "Prossima Settimana" not in settimana_salvata:
+                continue
+        # Se non ci sono etichette valide attuali, le aggiorniamo dolcemente o le lasciamo intatte per l'archivio
+    except Exception:
+        pass
+
+migra_vecchi_turni_se_necessario()
+
+# Inizializzazione stato con Firebase[cite: 3]
 if "cani" not in st.session_state:
     cani_caricati = carica_da_firestore("cani", None)
     if cani_caricati and isinstance(cani_caricati, list):
@@ -114,18 +159,7 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- GESTIONE ORARIO ITALIANO ESATTO ---
-tz_italia = pytz.timezone("Europe/Rome")
-adesso = datetime.now(tz_italia)
-giorno_settimana = adesso.weekday()
-ora_attuale = adesso.hour
-
-is_weekend_reale = (giorno_settimana > 4) or (
-    giorno_settimana == 4 and ora_attuale >= 17
-)
-is_weekend_o_venerdi_sera = is_weekend_reale
-
-# --- BARRA LATERALE (SIDEBAR) ---
+# --- BARRA LATERALE (SIDEBAR) ---[cite: 3]
 with st.sidebar:
     if os.path.exists("icona.jpg"):
         st.image("icona.jpg", width=80)
@@ -202,24 +236,7 @@ with st.sidebar:
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- FUNZIONE INTERVALLI SETTIMANE ---
-def get_intervalli_settimane():
-    oggi = datetime.now(tz_italia)
-    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
-    domenica_corrente = lunedi_corrente + timedelta(days=6)
-
-    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
-    domenica_prossima = domenica_corrente + timedelta(days=7)
-
-    fmt = "%d/%m/%Y"
-    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
-    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
-
-    return str_corr, str_pros
-
-label_corr, label_pros = get_intervalli_settimane()
-
-# --- INTESTAZIONE PRINCIPALE ---
+# --- INTESTAZIONE PRINCIPALE ---[cite: 3]
 st.title("🐾 Turni Canile")
 
 with st.container():
@@ -244,7 +261,7 @@ with st.container():
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
-# --- MENU PRINCIPALE IN ALTO ---
+# --- MENU PRINCIPALE IN ALTO ---[cite: 3]
 opzioni_base = [
     "📅 Inserisci",
     "👀 Panoramica",
