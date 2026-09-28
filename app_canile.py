@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS[cite: 3]
+# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
@@ -22,7 +22,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---[cite: 3]
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
 if not firebase_admin._apps:
     try:
         firebase_json_str = st.secrets["FIREBASE_JSON"]
@@ -36,7 +36,7 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---[cite: 3]
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---
 def carica_da_firestore(collezione_nome, default_val):
     try:
         docs = list(db.collection(collezione_nome).stream())
@@ -76,52 +76,7 @@ def elimina_da_firestore(collezione_nome, doc_id):
         st.error(f"Errore di eliminazione: {e}")
         return False
 
-# --- GESTIONE ORARIO ITALIANO ESATTO ---[cite: 3]
-tz_italia = pytz.timezone("Europe/Rome")
-adesso = datetime.now(tz_italia)
-giorno_settimana = adesso.weekday()
-ora_attuale = adesso.hour
-
-is_weekend_reale = (giorno_settimana > 4) or (
-    giorno_settimana == 4 and ora_attuale >= 17
-)
-is_weekend_o_venerdi_sera = is_weekend_reale
-
-# --- FUNZIONE INTERVALLI SETTIMANE DINAMICI ---[cite: 3]
-def get_intervalli_settimane():
-    oggi = datetime.now(tz_italia)
-    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
-    domenica_corrente = lunedi_corrente + timedelta(days=6)
-
-    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
-    domenica_prossima = domenica_corrente + timedelta(days=7)
-
-    fmt = "%d/%m/%Y"
-    str_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
-    str_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
-
-    return str_corr, str_pros
-
-label_corr, label_pros = get_intervalli_settimane()
-
-# --- MIGRAZIONE AUTOMATICA VECCHI TURNI (ALLINEAMENTO SETTIMANE) ---[cite: 3]
-def migra_vecchi_turni_se_necessario():
-    try:
-        turni_esistenti = carica_da_firestore("turni", [])
-        turno_modificato = False
-        for t in turni_esistenti:
-            settimana_salvata = t.get("settimana", "")
-            # Se un turno apparteneva alla vecchia "Prossima Settimana" ma ora la data coincide con la corrente, o viceversa
-            # Facciamo un controllo di sicurezza per evitare stringhe orfane
-            if "Settimana Corrente" not in settimana_salvata and "Prossima Settimana" not in settimana_salvata:
-                continue
-        # Se non ci sono etichette valide attuali, le aggiorniamo dolcemente o le lasciamo intatte per l'archivio
-    except Exception:
-        pass
-
-migra_vecchi_turni_se_necessario()
-
-# Inizializzazione stato con Firebase[cite: 3]
+# Inizializzazione stato con Firebase
 if "cani" not in st.session_state:
     cani_caricati = carica_da_firestore("cani", None)
     if cani_caricati and isinstance(cani_caricati, list):
@@ -159,7 +114,51 @@ if "turni" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- BARRA LATERALE (SIDEBAR) ---[cite: 3]
+# --- GESTIONE ORARIO ITALIANO ESATTO ---
+tz_italia = pytz.timezone("Europe/Rome")
+adesso = datetime.now(tz_italia)
+giorno_settimana = adesso.weekday()
+ora_attuale = adesso.hour
+
+is_weekend_reale = (giorno_settimana > 4) or (
+    giorno_settimana == 4 and ora_attuale >= 17
+)
+is_weekend_o_venerdi_sera = is_weekend_reale
+
+# --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA ---
+def get_info_settimane():
+    oggi = datetime.now(tz_italia)
+    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
+    domenica_corrente = lunedi_corrente + timedelta(days=6)
+
+    lunedi_prossimo = lunedi_corrente + timedelta(days=7)
+    domenica_prossima = domenica_corrente + timedelta(days=7)
+
+    fmt = "%d/%m/%Y"
+    
+    # Chiavi univoche basate sulla data del lunedì (es. "2026-09-28")
+    chiave_corr = lunedi_corrente.strftime("%Y-%m-%d")
+    chiave_pros = lunedi_prossimo.strftime("%Y-%m-%d")
+
+    label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
+    label_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
+
+    return {
+        chiave_corr: label_corr,
+        chiave_pros: label_pros,
+        "chiave_corr": chiave_corr,
+        "chiave_pros": chiave_pros,
+        "label_corr": label_corr,
+        "label_pros": label_pros
+    }
+
+info_sett = get_info_settimane()
+label_corr = info_sett["label_corr"]
+label_pros = info_sett["label_pros"]
+chiave_corr = info_sett["chiave_corr"]
+chiave_pros = info_sett["chiave_pros"]
+
+# --- BARRA LATERALE (SIDEBAR) ---
 with st.sidebar:
     if os.path.exists("icona.jpg"):
         st.image("icona.jpg", width=80)
@@ -185,7 +184,12 @@ with st.sidebar:
                         dettaglio_str = f"🐾 [{cani_str}]"
                     else:
                         dettaglio_str = "🧹 *Pulizie / LPU*"
-                    st.markdown(f"• **{tp.get('settimana')}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
+                    
+                    # Mostriamo la label leggibile in base alla chiave salvata
+                    s_key = tp.get("settimana_chiave", tp.get("settimana"))
+                    s_label = info_sett.get(s_key, f"Settimana del {s_key}")
+                    
+                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
                     st.markdown("---")
 
     st.markdown("---")
@@ -231,12 +235,28 @@ with st.sidebar:
                 is_weekend_o_venerdi_sera = False
             else:
                 is_weekend_o_venerdi_sera = is_weekend_reale
+                
+            # PULSANTE DI EMERGENZA PER SISTEMARE I TURNI FINITI IN ARCHIVIO
+            if st.button("🛠️ Sistema Turni Sballati (Fix)", key="btn_fix_turni"):
+                tutti_i_t = carica_da_firestore("turni", [])
+                corretti = 0
+                for t in tutti_i_t:
+                    # Se il turno è della settimana scorsa ma era stato messo come "Prossima", lo spostiamo alla chiave corrente
+                    s_val = t.get("settimana", "")
+                    if "Prossima" in s_val or "22/09" in s_val or "21/09" in s_val or "28/09" in s_val:
+                        # Assegniamo alla settimana corrente se logico, o sistemiamo la chiave
+                        t["settimana_chiave"] = chiave_corr
+                        t["settimana"] = label_corr
+                        db.collection("turni").document(str(t['id'])).set(t)
+                        corretti += 1
+                st.success(f"Sistemati {corretti} turni con successo!")
+                st.rerun()
 
             if st.button("🔒 Esci Admin", key="esci_admin_side"):
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- INTESTAZIONE PRINCIPALE ---[cite: 3]
+# --- INTESTAZIONE PRINCIPALE ---
 st.title("🐾 Turni Canile")
 
 with st.container():
@@ -247,7 +267,7 @@ with st.container():
     
     turni_oggi = [
         t for t in turni_notifiche 
-        if t.get("giorno") == giorno_oggi_str and t.get("settimana") == label_corr
+        if t.get("giorno") == giorno_oggi_str and t.get("settimana_chiave", t.get("settimana")) == chiave_corr
     ]
     
     cani_coperti_oggi = set()
@@ -261,7 +281,7 @@ with st.container():
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
-# --- MENU PRINCIPALE IN ALTO ---[cite: 3]
+# --- MENU PRINCIPALE IN ALTO ---
 opzioni_base = [
     "📅 Inserisci",
     "👀 Panoramica",
@@ -308,15 +328,18 @@ if menu == "📅 Inserisci":
     st.header("Gestione Turni")
 
     if is_weekend_o_venerdi_sera:
-        opzioni_settimana = [label_corr, label_pros]
+        opzioni_settimana_scelta = [label_corr, label_pros]
+        chiavi_mappa_scelta = {label_corr: chiave_corr, label_pros: chiave_pros}
     else:
-        opzioni_settimana = [label_corr]
+        opzioni_settimana_scelta = [label_corr]
+        chiavi_mappa_scelta = {label_corr: chiave_corr}
 
-    settimana_scelta = st.radio(
+    settimana_scelta_label = st.radio(
         "Per quale settimana vuoi inserire il turno?",
-        opzioni_settimana,
+        opzioni_settimana_scelta,
         horizontal=True,
     )
+    settimana_scelta_chiave = chiavi_mappa_scelta[settimana_scelta_label]
 
     volontari_registrati = get_lista_volontari()
 
@@ -443,7 +466,7 @@ if menu == "📅 Inserisci":
                 volontario_normalizzato = volontario_finale.strip().lower()
                 doppione_trovato = any(
                     t.get("volontario", "").strip().lower() == volontario_normalizzato and
-                    t.get("settimana") == settimana_scelta and
+                    t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
                     t.get("giorno") == giorno and
                     t.get("fascia") == fascia
                     for t in lista_turni
@@ -455,7 +478,8 @@ if menu == "📅 Inserisci":
                     id_turno = str(datetime.now().timestamp())
                     nuovo_turno = {
                         "id": id_turno,
-                        "settimana": settimana_scelta,
+                        "settimana": settimana_scelta_label,
+                        "settimana_chiave": settimana_scelta_chiave,
                         "volontario": volontario_finale,
                         "giorno": giorno,
                         "fascia": fascia,
@@ -477,17 +501,20 @@ elif menu == "👀 Panoramica":
 
     if is_weekend_o_venerdi_sera:
         scelte_visualizzazione = [label_corr, label_pros]
+        mappa_scelte_vis = {label_corr: chiave_corr, label_pros: chiave_pros}
     else:
         scelte_visualizzazione = [label_corr]
+        mappa_scelte_vis = {label_corr: chiave_corr}
 
-    settimana_vista = st.radio(
+    settimana_vista_label = st.radio(
         "Seleziona la settimana da visualizzare:",
         scelte_visualizzazione,
         horizontal=True,
     )
+    settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
     turni_filtrati = [
-        t for t in turni_attuali if t.get("settimana") == settimana_vista
+        t for t in turni_attuali if t.get("settimana_chiave", t.get("settimana")) == settimana_vista_chiave
     ]
 
     if st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani":
@@ -612,6 +639,7 @@ elif menu == "👀 Panoramica":
                                                     t_aggiornato = {
                                                         "id": t["id"],
                                                         "settimana": t["settimana"],
+                                                        "settimana_chiave": t.get("settimana_chiave", chiave_corr),
                                                         "volontario": t["volontario"],
                                                         "giorno": t["giorno"],
                                                         "fascia": t["fascia"],
@@ -722,21 +750,27 @@ elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
     
     tutti_i_turni = carica_da_firestore("turni", [])
-    tutte_le_settimane = sorted(
-        list(set(t.get("settimana") for t in tutti_i_turni))
-    )
+    
+    # Raccogliamo tutte le settimane uniche per chiave o etichetta
+    settimane_map_stat = {}
+    for t in tutti_i_turni:
+        s_chiave = t.get("settimana_chiave", t.get("settimana"))
+        s_label = t.get("settimana", s_chiave)
+        settimane_map_stat[s_chiave] = s_label
 
-    if label_corr not in tutte_le_settimane:
-        tutte_le_settimane.insert(0, label_corr)
-    if label_pros not in tutte_le_settimane and is_weekend_o_venerdi_sera:
-        tutte_le_settimane.append(label_pros)
+    if chiave_corr not in settimane_map_stat:
+        settimane_map_stat[chiave_corr] = label_corr
+    if is_weekend_o_venerdi_sera and chiave_pros not in settimane_map_stat:
+        settimane_map_stat[chiave_pros] = label_pros
 
-    settimana_stat = st.selectbox(
-        "Seleziona settimana da analizzare:", tutte_le_settimane
+    scelta_chiave_stat = st.selectbox(
+        "Seleziona settimana da analizzare:",
+        options=list(settimane_map_stat.keys()),
+        format_func=lambda x: settimane_map_stat.get(x, x)
     )
 
     turni_stat = [
-        t for t in tutti_i_turni if t.get("settimana") == settimana_stat
+        t for t in tutti_i_turni if t.get("settimana_chiave", t.get("settimana")) == scelta_chiave_stat
     ]
 
     uscite_per_cane = {cane: 0 for cane in st.session_state.cani}
@@ -800,27 +834,28 @@ elif menu == "📚 Archivio":
     st.header("📚 Archivio Storico delle Settimane Passate")
     
     tutti_i_turni = carica_da_firestore("turni", [])
-    tutte_le_settimane = sorted(
-        list(set(t.get("settimana") for t in tutti_i_turni))
-    )
-    settimane_storiche = sorted(
-        [s for s in tutte_le_settimane if s != label_corr and s != label_pros],
-        reverse=True
-    )
+    
+    # Raggruppiamo per chiave di settimana escludendo corrente e prossima
+    settimane_archivio_map = {}
+    for t in tutti_i_turni:
+        s_chiave = t.get("settimana_chiave", t.get("settimana"))
+        s_label = t.get("settimana", s_chiave)
+        if s_chiave != chiave_corr and s_chiave != chiave_pros:
+            settimane_archivio_map[s_chiave] = s_label
 
-    settimane_disponibili = (
-        settimane_storiche if settimane_storiche else tutte_le_settimane
-    )
+    chiavi_storiche_ordinate = sorted(list(settimane_archivio_map.keys()), reverse=True)
 
-    if not settimane_disponibili:
+    if not chiavi_storiche_ordinate:
         st.info("Nessun dato presente nell'archivio storico.")
     else:
-        storico_scelto = st.selectbox(
-            "Seleziona la settimana dall'archivio:", settimane_disponibili
+        storico_scelto_chiave = st.selectbox(
+            "Seleziona la settimana dall'archivio:",
+            options=chiavi_storiche_ordinate,
+            format_func=lambda x: settimane_archivio_map[x]
         )
 
         turni_storico = [
-            t for t in tutti_i_turni if t.get("settimana") == storico_scelto
+            t for t in tutti_i_turni if t.get("settimana_chiave", t.get("settimana")) == storico_scelto_chiave
         ]
 
         giorni_settimana = [
@@ -964,9 +999,19 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                     lpu_scelto = st.selectbox(
                         "Seleziona LPU:", lpu_nomi_disponibili
                     )
-                    settimana_lpu = st.selectbox(
-                        "Settimana:", [label_corr, label_pros]
+                    
+                    if is_weekend_o_venerdi_sera:
+                        opzioni_lpu_labels = [label_corr, label_pros]
+                        opzioni_lpu_chiavi = {label_corr: chiave_corr, label_pros: chiave_pros}
+                    else:
+                        opzioni_lpu_labels = [label_corr]
+                        opzioni_lpu_chiavi = {label_corr: chiave_corr}
+
+                    settimana_lpu_label = st.selectbox(
+                        "Settimana:", opzioni_lpu_labels
                     )
+                    settimana_lpu_chiave = opzioni_lpu_chiavi[settimana_lpu_label]
+
                     giorno_lpu = st.selectbox(
                         "Giorno:",
                         [
@@ -1009,7 +1054,8 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                         nuovo_t_lpu = {
                             "id": id_univoco,
                             "lpu": lpu_scelto,
-                            "settimana": settimana_lpu,
+                            "settimana": settimana_lpu_label,
+                            "settimana_chiave": settimana_lpu_chiave,
                             "giorno": giorno_lpu,
                             "fascia": fascia_lpu,
                             "orario": orario_lpu_str,
@@ -1026,7 +1072,8 @@ elif menu == "🛠️ Gestione LPU (Admin)":
 
                         turno_generale_equivalente = {
                             "id": f"lpu_{id_univoco}",
-                            "settimana": settimana_lpu,
+                            "settimana": settimana_lpu_label,
+                            "settimana_chiave": settimana_lpu_chiave,
                             "volontario": f"{lpu_scelto} (LPU)",
                             "giorno": giorno_lpu,
                             "fascia": fascia_lpu,
@@ -1128,6 +1175,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     "id": tl["id"],
                                     "lpu": tl["lpu"],
                                     "settimana": tl["settimana"],
+                                    "settimana_chiave": tl.get("settimana_chiave", chiave_corr),
                                     "giorno": tl["giorno"],
                                     "fascia": tl["fascia"],
                                     "orario": tl["orario"],
