@@ -136,12 +136,11 @@ def get_info_settimane():
 
     fmt = "%d/%m/%Y"
     
-    # Chiavi ISO stabili (es. "2026-W40")
-    anno_corr, num_sett_corr, _ = oggi.isocalendar()
+    # Chiavi ISO stabili (es. "2026-W40") basate sul lunedì della settimana corrente
+    anno_corr, num_sett_corr, _ = lunedi_corrente.isocalendar()
     chiave_corr = f"{anno_corr}-W{num_sett_corr:02d}"
     
-    data_prossima = oggi + timedelta(days=7)
-    anno_pros, num_sett_pros, _ = data_prossima.isocalendar()
+    anno_pros, num_sett_pros, _ = lunedi_prossimo.isocalendar()
     chiave_pros = f"{anno_pros}-W{num_sett_pros:02d}"
 
     label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
