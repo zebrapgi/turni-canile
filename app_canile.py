@@ -125,7 +125,7 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA ---
+# --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA (ISO WEEKS) ---
 def get_info_settimane():
     oggi = datetime.now(tz_italia)
     lunedi_corrente = oggi - timedelta(days=oggi.weekday())
@@ -136,9 +136,13 @@ def get_info_settimane():
 
     fmt = "%d/%m/%Y"
     
-    # Chiavi univoche basate sulla data del lunedì (es. "2026-09-28")
-    chiave_corr = lunedi_corrente.strftime("%Y-%m-%d")
-    chiave_pros = lunedi_prossimo.strftime("%Y-%m-%d")
+    # Chiavi ISO stabili (es. "2026-W40")
+    anno_corr, num_sett_corr, _ = oggi.isocalendar()
+    chiave_corr = f"{anno_corr}-W{num_sett_corr:02d}"
+    
+    data_prossima = oggi + timedelta(days=7)
+    anno_pros, num_sett_pros, _ = data_prossima.isocalendar()
+    chiave_pros = f"{anno_pros}-W{num_sett_pros:02d}"
 
     label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
     label_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
@@ -185,9 +189,8 @@ with st.sidebar:
                     else:
                         dettaglio_str = "🧹 *Pulizie / LPU*"
                     
-                    # Mostriamo la label leggibile in base alla chiave salvata
                     s_key = tp.get("settimana_chiave", tp.get("settimana"))
-                    s_label = info_sett.get(s_key, f"Settimana del {s_key}")
+                    s_label = info_sett.get(s_key, f"Settimana {s_key}")
                     
                     st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
                     st.markdown("---")
@@ -235,22 +238,6 @@ with st.sidebar:
                 is_weekend_o_venerdi_sera = False
             else:
                 is_weekend_o_venerdi_sera = is_weekend_reale
-                
-            # PULSANTE DI EMERGENZA PER SISTEMARE I TURNI FINITI IN ARCHIVIO
-            if st.button("🛠️ Sistema Turni Sballati (Fix)", key="btn_fix_turni"):
-                tutti_i_t = carica_da_firestore("turni", [])
-                corretti = 0
-                for t in tutti_i_t:
-                    # Se il turno è della settimana scorsa ma era stato messo come "Prossima", lo spostiamo alla chiave corrente
-                    s_val = t.get("settimana", "")
-                    if "Prossima" in s_val or "22/09" in s_val or "21/09" in s_val or "28/09" in s_val:
-                        # Assegniamo alla settimana corrente se logico, o sistemiamo la chiave
-                        t["settimana_chiave"] = chiave_corr
-                        t["settimana"] = label_corr
-                        db.collection("turni").document(str(t['id'])).set(t)
-                        corretti += 1
-                st.success(f"Sistemati {corretti} turni con successo!")
-                st.rerun()
 
             if st.button("🔒 Esci Admin", key="esci_admin_side"):
                 st.session_state.is_admin = False
@@ -751,7 +738,6 @@ elif menu == "📊 Statistiche":
     
     tutti_i_turni = carica_da_firestore("turni", [])
     
-    # Raccogliamo tutte le settimane uniche per chiave o etichetta
     settimane_map_stat = {}
     for t in tutti_i_turni:
         s_chiave = t.get("settimana_chiave", t.get("settimana"))
@@ -835,7 +821,6 @@ elif menu == "📚 Archivio":
     
     tutti_i_turni = carica_da_firestore("turni", [])
     
-    # Raggruppiamo per chiave di settimana escludendo corrente e prossima
     settimane_archivio_map = {}
     for t in tutti_i_turni:
         s_chiave = t.get("settimana_chiave", t.get("settimana"))
