@@ -136,11 +136,12 @@ def get_info_settimane():
 
     fmt = "%d/%m/%Y"
     
-    # Chiavi ISO stabili (es. "2026-W40") basate sul lunedì della settimana corrente
-    anno_corr, num_sett_corr, _ = lunedi_corrente.isocalendar()
+    # Chiavi ISO stabili (es. "2026-W40")
+    anno_corr, num_sett_corr, _ = oggi.isocalendar()
     chiave_corr = f"{anno_corr}-W{num_sett_corr:02d}"
     
-    anno_pros, num_sett_pros, _ = lunedi_prossimo.isocalendar()
+    data_prossima = oggi + timedelta(days=7)
+    anno_pros, num_sett_pros, _ = data_prossima.isocalendar()
     chiave_pros = f"{anno_pros}-W{num_sett_pros:02d}"
 
     label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
@@ -161,6 +162,25 @@ label_pros = info_sett["label_pros"]
 chiave_corr = info_sett["chiave_corr"]
 chiave_pros = info_sett["chiave_pros"]
 
+# Funzione helper per normalizzare i turni letti da Firestore
+def carica_turni_normalizzati():
+    turni_grezzi = carica_da_firestore("turni", [])
+    turni_normalizzati = []
+    for t in turni_grezzi:
+        s_chiave = t.get("settimana_chiave", "")
+        s_label = t.get("settimana", "")
+        
+        # Se la chiave è una vecchia etichetta testuale o manca, correggiamo al volo
+        if not s_chiave or "Settimana Corrente" in s_label or s_chiave == label_corr:
+            t["settimana_chiave"] = chiave_corr
+            t["settimana"] = label_corr
+        elif "Prossima Settimana" in s_label or s_chiave == label_pros:
+            t["settimana_chiave"] = chiave_pros
+            t["settimana"] = label_pros
+            
+        turni_normalizzati.append(t)
+    return turni_normalizzati
+
 # --- BARRA LATERALE (SIDEBAR) ---
 with st.sidebar:
     if os.path.exists("icona.jpg"):
@@ -169,7 +189,7 @@ with st.sidebar:
     st.title("🐾 Menu Rapido")
     
     with st.expander("🔍 Cerca i miei turni", expanded=False):
-        turni_esistenti_side = carica_da_firestore("turni", [])
+        turni_esistenti_side = carica_turni_normalizzati()
         nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
         
         if not nomi_side:
@@ -200,7 +220,7 @@ with st.sidebar:
         tutti_i_cani_presenti = sorted(list(st.session_state.cani))
         filtro_cane = st.selectbox("Filtra per cane:", ["Tutti i cani"] + tutti_i_cani_presenti, key="filtro_cane_side")
         
-        turni_temp = carica_da_firestore("turni", [])
+        turni_temp = carica_turni_normalizzati()
         tutti_i_volontari = sorted(list(set(t.get("volontario") for t in turni_temp if t.get("volontario"))))
         filtro_volontario = st.selectbox("Filtra per volontario:", ["Tutti i volontari"] + tutti_i_volontari, key="filtro_vol_side")
 
@@ -246,7 +266,7 @@ with st.sidebar:
 st.title("🐾 Turni Canile")
 
 with st.container():
-    turni_notifiche = carica_da_firestore("turni", [])
+    turni_notifiche = carica_turni_normalizzati()
     
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
@@ -298,7 +318,7 @@ def get_cani_frequenti_volontario(nome_volontario):
     if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
         return []
     
-    turni_esistenti = carica_da_firestore("turni", [])
+    turni_esistenti = carica_turni_normalizzati()
     conteggio_cani = {}
     
     for t in turni_esistenti:
@@ -447,7 +467,7 @@ if menu == "📅 Inserisci":
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
 
-                lista_turni = carica_da_firestore("turni", [])
+                lista_turni = carica_turni_normalizzati()
                 
                 volontario_normalizzato = volontario_finale.strip().lower()
                 doppione_trovato = any(
@@ -483,7 +503,7 @@ if menu == "📅 Inserisci":
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
 
-    turni_attuali = carica_da_firestore("turni", [])
+    turni_attuali = carica_turni_normalizzati()
 
     if is_weekend_o_venerdi_sera:
         scelte_visualizzazione = [label_corr, label_pros]
@@ -735,7 +755,7 @@ elif menu == "👥 Volontari":
 elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
     
-    tutti_i_turni = carica_da_firestore("turni", [])
+    tutti_i_turni = carica_turni_normalizzati()
     
     settimane_map_stat = {}
     for t in tutti_i_turni:
@@ -818,7 +838,7 @@ elif menu == "📊 Statistiche":
 elif menu == "📚 Archivio":
     st.header("📚 Archivio Storico delle Settimane Passate")
     
-    tutti_i_turni = carica_da_firestore("turni", [])
+    tutti_i_turni = carica_turni_normalizzati()
     
     settimane_archivio_map = {}
     for t in tutti_i_turni:
