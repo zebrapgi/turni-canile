@@ -93,7 +93,6 @@ if "volontari_db" not in st.session_state:
     if volontari_caricati and isinstance(volontari_caricati, list):
         st.session_state.volontari_db = volontari_caricati
     else:
-        # Se non esiste, estraiamo inizialmente dai turni storici per non perdere nessuno
         turni_temp = carica_da_firestore("turni", [])
         nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
         st.session_state.volontari_db = nomi_iniziali
@@ -418,7 +417,6 @@ if menu == "📅 Inserisci":
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
             else:
-                # Salvataggio automatico del nuovo volontario nell'anagrafica se non esiste
                 if volontario_finale not in st.session_state.volontari_db:
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
@@ -601,7 +599,7 @@ elif menu == "👀 Panoramica":
                                                         "giorno": t["giorno"],
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
-                                                        "cani_fatti": nuevos_cani if 'nuevos_cani' in locals() else nuovi_cani,
+                                                        "cani_fatti": nuovi_cani,
                                                         "note": nuove_note
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
