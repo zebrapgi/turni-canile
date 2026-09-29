@@ -36,33 +36,42 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE ---
-def carica_da_firestore(collezione_nome, default_val):
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
+@st.cache_data(ttl=600) # La cache dura 10 minuti, ma si azzera automaticamente a ogni scrittura
+def carica_da_firestore_cached(collezione_nome):
     try:
         docs = list(db.collection(collezione_nome).stream())
         data = {doc.id: doc.to_dict() for doc in docs}
         
         if collezione_nome == "cani":
             if "lista" in data:
-                return data["lista"].get("elementi", default_val)
-            return default_val
+                return data["lista"].get("elementi", [])
+            return []
         elif collezione_nome == "volontari":
             if "lista" in data:
-                return data["lista"].get("elementi", default_val)
-            return default_val
+                return data["lista"].get("elementi", [])
+            return []
         elif collezione_nome == "lpu_data":
-            return data if data else default_val
+            return data if data else {}
         elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
             lista = [doc.to_dict() for doc in docs]
-            return lista if lista else default_val
-        return default_val
+            return lista if lista else []
+        return {}
     except Exception as e:
-        st.error(f"Errore di caricamento: {e}")
+        return None
+
+# Funzione non cachata per letture "live" quando serve freschezza assoluta (es. archivio o turni critici)
+def carica_da_firestore_live(collezione_nome, default_val):
+    res = carica_da_firestore_cached(collezione_nome)
+    if res is None:
         return default_val
+    return res
 
 def salva_su_firestore(collezione_nome, doc_id, data_dict):
     try:
         db.collection(collezione_nome).document(str(doc_id)).set(data_dict)
+        # Svuotiamo la cache così tutti vedranno subito le modifiche fresche
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Errore di salvataggio su Firebase: {e}")
@@ -71,6 +80,8 @@ def salva_su_firestore(collezione_nome, doc_id, data_dict):
 def elimina_da_firestore(collezione_nome, doc_id):
     try:
         db.collection(collezione_nome).document(str(doc_id)).delete()
+        # Svuotiamo la cache a ogni eliminazione
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Errore di eliminazione: {e}")
@@ -78,7 +89,7 @@ def elimina_da_firestore(collezione_nome, doc_id):
 
 # Inizializzazione stato con Firebase
 if "cani" not in st.session_state:
-    cani_caricati = carica_da_firestore("cani", None)
+    cani_caricati = carica_da_firestore_live("cani", None)
     if cani_caricati and isinstance(cani_caricati, list):
         st.session_state.cani = cani_caricati
     else:
@@ -89,27 +100,23 @@ if "cani" not in st.session_state:
         db.collection("cani").document("lista").set({"elementi": default_cani})
 
 if "volontari_db" not in st.session_state:
-    volontari_caricati = carica_da_firestore("volontari", None)
+    volontari_caricati = carica_da_firestore_live("volontari", None)
     if volontari_caricati and isinstance(volontari_caricati, list):
         st.session_state.volontari_db = volontari_caricati
     else:
-        turni_temp = carica_da_firestore("turni", [])
+        turni_temp = carica_da_firestore_live("turni", [])
         nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
         st.session_state.volontari_db = nomi_iniziali
         db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
 
 if "lpu_data" not in st.session_state:
-    lpu_caricati = list(db.collection("lpu_data").stream())
-    lpu_dict = {doc.id: doc.to_dict() for doc in lpu_caricati}
-    st.session_state.lpu_data = lpu_dict if lpu_dict else {}
+    st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
 
 if "turni_lpu" not in st.session_state:
-    turni_lpu_docs = list(db.collection("turni_lpu").stream())
-    st.session_state.turni_lpu = [doc.to_dict() for doc in turni_lpu_docs]
+    st.session_state.turni_lpu = carica_da_firestore_live("turni_lpu", [])
 
 if "turni" not in st.session_state:
-    turni_docs = list(db.collection("turni").stream())
-    st.session_state.turni = [doc.to_dict() for doc in turni_docs]
+    st.session_state.turni = carica_da_firestore_live("turni", [])
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
@@ -136,7 +143,6 @@ def get_info_settimane():
 
     fmt = "%d/%m/%Y"
     
-    # Chiavi ISO stabili (es. "2026-W40")
     anno_corr, num_sett_corr, _ = oggi.isocalendar()
     chiave_corr = f"{anno_corr}-W{num_sett_corr:02d}"
     
@@ -162,15 +168,13 @@ label_pros = info_sett["label_pros"]
 chiave_corr = info_sett["chiave_corr"]
 chiave_pros = info_sett["chiave_pros"]
 
-# Funzione helper per normalizzare i turni letti da Firestore
 def carica_turni_normalizzati():
-    turni_grezzi = carica_da_firestore("turni", [])
+    turni_grezzi = carica_da_firestore_live("turni", [])
     turni_normalizzati = []
     for t in turni_grezzi:
         s_chiave = t.get("settimana_chiave", "")
         s_label = t.get("settimana", "")
         
-        # Se la chiave è una vecchia etichetta testuale o manca, correggiamo al volo
         if not s_chiave or "Settimana Corrente" in s_label or s_chiave == label_corr:
             t["settimana_chiave"] = chiave_corr
             t["settimana"] = label_corr
@@ -188,6 +192,12 @@ with st.sidebar:
     
     st.title("🐾 Menu Rapido")
     
+    # Pulsante manuale per forzare lo svuotamento della cache e ricaricare da Firebase
+    if st.button("🔄 Aggiorna Dati da Firebase"):
+        st.cache_data.clear()
+        st.success("Dati aggiornati!")
+        st.rerun()
+
     with st.expander("🔍 Cerca i miei turni", expanded=False):
         turni_esistenti_side = carica_turni_normalizzati()
         nomi_side = sorted(list(set(t.get("volontario", "").strip() for t in turni_esistenti_side if t.get("volontario"))))
@@ -355,11 +365,9 @@ if menu == "📅 Inserisci":
     scelta_volontario_dropdown = st.selectbox("Seleziona o inserisci il tuo Nome e Cognome:", scelte_volontario, key="selettore_nome_principale")
     
     volontario_finale = ""
-    is_nuovo_volontario = False
     if scelta_volontario_dropdown == "➕ Altro / Nuovo volontario":
         volontario_nuovo_input = st.text_input("Scrivi qui il tuo Nome e Cognome:", key="input_nuovo_volontario_libero")
         volontario_finale = volontario_nuovo_input.strip()
-        is_nuovo_volontario = True
     elif scelta_volontario_dropdown != "-- Seleziona il tuo nome --":
         volontario_finale = scelta_volontario_dropdown
 
@@ -466,6 +474,7 @@ if menu == "📅 Inserisci":
                 if volontario_finale not in st.session_state.volontari_db:
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                    st.cache_data.clear()
 
                 lista_turni = carica_turni_normalizzati()
                 
@@ -495,6 +504,7 @@ if menu == "📅 Inserisci":
                     }
                     try:
                         db.collection("turni").document(id_turno).set(nuovo_turno)
+                        st.cache_data.clear() # Pulisce la cache per tutti
                         st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
                         st.rerun()
                     except Exception as e:
@@ -598,7 +608,7 @@ elif menu == "👀 Panoramica":
                                             if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
                                                 if t['id'].startswith("lpu_"):
                                                     original_lpu_id = t['id'].replace("lpu_", "")
-                                                    tutti_lpu = carica_da_firestore("turni_lpu", [])
+                                                    tutti_lpu = carica_da_firestore_live("turni_lpu", [])
                                                     lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
                                                     
                                                     if lpu_trovato:
@@ -701,6 +711,7 @@ elif menu == "🐶 Cani":
             if new_dog.strip() and new_dog not in st.session_state.cani:
                 st.session_state.cani.append(new_dog.strip())
                 db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                st.cache_data.clear()
                 st.success(f"Cane '{new_dog}' aggiunto con successo!")
                 st.rerun()
             elif new_dog in st.session_state.cani:
@@ -717,6 +728,7 @@ elif menu == "🐶 Cani":
                     if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
                         st.session_state.cani.remove(dog)
                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                        st.cache_data.clear()
                         st.success(f"Cane '{dog}' eliminato.")
                         st.rerun()
 
@@ -733,6 +745,7 @@ elif menu == "👥 Volontari":
             if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
                 st.session_state.volontari_db.append(new_vol.strip())
                 db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                st.cache_data.clear()
                 st.success(f"Volontario '{new_vol}' aggiunto con successo!")
                 st.rerun()
             elif new_vol.strip() in st.session_state.volontari_db:
@@ -749,6 +762,7 @@ elif menu == "👥 Volontari":
                     if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
                         st.session_state.volontari_db.remove(vol)
                         db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                        st.cache_data.clear()
                         st.success(f"Volontario '{vol}' eliminato.")
                         st.rerun()
 
@@ -1097,7 +1111,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
 
         with tab_lpu_storico:
             st.subheader("📚 Storico, Modifica ed Eliminazione Turni LPU")
-            tutti_turni_lpu = carica_da_firestore("turni_lpu", [])
+            tutti_turni_lpu = carica_da_firestore_live("turni_lpu", [])
 
             if not tutti_turni_lpu:
                 st.info("Nessun turno LPU registrato.")
@@ -1206,10 +1220,11 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                         "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
                                     )
 
-                                turno_gen_esistente = db.collection("turni").document(f"lpu_{tl['id']}").get().to_dict()
-                                if turno_gen_esistente:
-                                    turno_gen_esistente["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
-                                    salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_esistente)
+                                turno_gen_esistente = carica_da_firestore_live("turni", [])
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                if turno_gen_trovato:
+                                    turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
+                                    salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
 
                                 st.session_state[
                                     f"editing_lpu_{tl['id']}"
