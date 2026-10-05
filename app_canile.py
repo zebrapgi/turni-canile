@@ -149,8 +149,8 @@ def get_info_settimane():
     anno_pros, num_sett_pros, _ = lunedi_prossimo.isocalendar()
     chiave_pros = f"{anno_pros}-W{num_sett_pros:02d}"
 
-    label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
-    label_pros = f"Prossima Settimana ({lunedi_prossimo.strftime(fmt)} - {domenica_prossima.strftime(fmt)})"
+    label_corr = f"Settimana dal {lunedi_corrente.strftime(fmt)} al {domenica_corrente.strftime(fmt)}"
+    label_pros = f"Prossima Settimana dal {lunedi_prossimo.strftime(fmt)} al {domenica_prossima.strftime(fmt)}"
 
     return {
         chiave_corr: label_corr,
@@ -170,14 +170,31 @@ chiave_pros = info_sett["chiave_pros"]
 def carica_turni_normalizzati():
     turni_grezzi = carica_da_firestore_live("turni", [])
     turni_normalizzati = []
+    
+    fmt = "%d/%m/%Y"
+    
     for t in turni_grezzi:
-        # Preserviamo la chiave di settimana originale salvata su Firebase per evitare slittamenti
-        if not t.get("settimana_chiave"):
+        s_chiave = t.get("settimana_chiave", "")
+        
+        if not s_chiave:
             s_label = t.get("settimana", "")
             if "Prossima Settimana" in s_label:
                 t["settimana_chiave"] = chiave_pros
             else:
                 t["settimana_chiave"] = chiave_corr
+        
+        chiave_corrente_turno = t.get("settimana_chiave")
+        try:
+            anno_str, sett_str = chiave_corrente_turno.split("-W")
+            anno = int(anno_str)
+            settimana = int(sett_str)
+            lunedi_rif = datetime.fromisocalendar(anno, settimana, 1).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz_italia)
+            domenica_rif = lunedi_rif + timedelta(days=6)
+            
+            t["settimana"] = f"Settimana dal {lunedi_rif.strftime(fmt)} al {domenica_rif.strftime(fmt)}"
+        except Exception:
+            pass
+            
         turni_normalizzati.append(t)
     return turni_normalizzati
 
@@ -214,7 +231,7 @@ with st.sidebar:
                         dettaglio_str = "🧹 *Pulizie / LPU*"
                     
                     s_key = tp.get("settimana_chiave", tp.get("settimana"))
-                    s_label = info_sett.get(s_key, f"Settimana {s_key}")
+                    s_label = info_sett.get(s_key, tp.get("settimana"))
                     
                     st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
                     st.markdown("---")
@@ -250,7 +267,7 @@ with st.sidebar:
                 "Simulazione:",
                 [
                     "📅 Automatico",
-                    "⚠️ Simula Weekend",
+                    "⚠️️ Simula Weekend",
                     "🟢 Simula Feriale",
                 ],
                 key="selettore_simulazione_side",
@@ -851,9 +868,9 @@ elif menu == "📚 Archivio":
     
     settimane_archivio_map = {}
     for t in tutti_i_turni:
-        s_chiave = t.get("settimana_chiave", t.get("settimana"))
-        s_label = t.get("settimana", s_chiave)
-        if s_chiave != chiave_corr and s_chiave != chiave_pros:
+        s_chiave = t.get("settimana_chiave", "")
+        s_label = t.get("settimana", "")
+        if s_chiave and s_chiave != chiave_corr and s_chiave != chiave_pros:
             settimane_archivio_map[s_chiave] = s_label
 
     chiavi_storiche_ordinate = sorted(list(settimane_archivio_map.keys()), reverse=True)
@@ -868,7 +885,7 @@ elif menu == "📚 Archivio":
         )
 
         turni_storico = [
-            t for t in tutti_i_turni if t.get("settimana_chiave", t.get("settimana")) == storico_scelto_chiave
+            t for t in tutti_i_turni if t.get("settimana_chiave") == storico_scelto_chiave
         ]
 
         giorni_settimana = [
