@@ -22,11 +22,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA DA SINGOLI SECRETS ---
 if not firebase_admin._apps:
     try:
-        firebase_json_str = st.secrets["FIREBASE_JSON"]
-        cred_dict = json.loads(firebase_json_str)
+        cred_dict = {
+            "type": st.secrets["type"],
+            "project_id": st.secrets["project_id"],
+            "private_key_id": st.secrets["private_key_id"],
+            "private_key": st.secrets["private_key"].replace("\\n", "\n"),
+            "client_email": st.secrets["client_email"],
+            "client_id": st.secrets["client_id"],
+            "auth_uri": st.secrets["auth_uri"],
+            "token_uri": st.secrets["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": st.secrets["client_x509_cert_url"],
+            "universe_domain": st.secrets["universe_domain"]
+        }
         
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
@@ -36,7 +47,7 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA E FALLBACK SICURO ---
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
 @st.cache_data(ttl=600) # La cache dura 10 minuti, ma si azzera automaticamente a ogni scrittura
 def carica_da_firestore_cached(collezione_nome):
     try:
@@ -58,10 +69,9 @@ def carica_da_firestore_cached(collezione_nome):
             return lista if lista else []
         return {}
     except Exception as e:
-        print(f"Errore di lettura da Firebase ({collezione_nome}): {e}")
         return None
 
-# Funzione non cachata per letture "live" quando serve freschezza assoluta, protetta da fallback
+# Funzione non cachata per letture "live" quando serve freschezza assoluta
 def carica_da_firestore_live(collezione_nome, default_val):
     res = carica_da_firestore_cached(collezione_nome)
     if res is None:
@@ -274,7 +284,7 @@ with st.sidebar:
                 key="selettore_simulazione_side",
             )
 
-            if scelta_simulazione == "⚠️ Simula Weekend":
+            if scelta_simulazione == "⚠️️ Simula Weekend":
                 is_weekend_o_venerdi_sera = True
             elif scelta_simulazione == "🟢 Simula Feriale":
                 is_weekend_o_venerdi_sera = False
@@ -308,7 +318,7 @@ with st.container():
 
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
-            st.warning(f"⚠️️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
+            st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE IN ALTO ---
 opzioni_base = [
