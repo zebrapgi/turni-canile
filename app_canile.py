@@ -36,7 +36,7 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
+# --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA E FALLBACK SICURO ---
 @st.cache_data(ttl=600) # La cache dura 10 minuti, ma si azzera automaticamente a ogni scrittura
 def carica_da_firestore_cached(collezione_nome):
     try:
@@ -58,9 +58,10 @@ def carica_da_firestore_cached(collezione_nome):
             return lista if lista else []
         return {}
     except Exception as e:
+        print(f"Errore di lettura da Firebase ({collezione_nome}): {e}")
         return None
 
-# Funzione non cachata per letture "live" quando serve freschezza assoluta
+# Funzione non cachata per letture "live" quando serve freschezza assoluta, protetta da fallback
 def carica_da_firestore_live(collezione_nome, default_val):
     res = carica_da_firestore_cached(collezione_nome)
     if res is None:
@@ -267,7 +268,7 @@ with st.sidebar:
                 "Simulazione:",
                 [
                     "📅 Automatico",
-                    "⚠️️ Simula Weekend",
+                    "⚠ Simula Weekend",
                     "🟢 Simula Feriale",
                 ],
                 key="selettore_simulazione_side",
@@ -307,7 +308,7 @@ with st.container():
 
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
-            st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
+            st.warning(f"⚠️️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE IN ALTO ---
 opzioni_base = [
@@ -1247,4 +1248,3 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                 st.rerun()
 
                     st.markdown("---")
-# test sblocco server
