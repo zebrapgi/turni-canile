@@ -22,28 +22,34 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA DA SINGOLI SECRETS ---
-if not firebase_admin._apps:
-    try:
-        cred_dict = {
-            "type": st.secrets["type"],
-            "project_id": st.secrets["project_id"],
-            "private_key_id": st.secrets["private_key_id"],
-            "private_key": st.secrets["private_key"].replace("\\n", "\n"),
-            "client_email": st.secrets["client_email"],
-            "client_id": st.secrets["client_id"],
-            "auth_uri": st.secrets["auth_uri"],
-            "token_uri": st.secrets["token_uri"],
-            "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["client_x509_cert_url"],
-            "universe_domain": st.secrets["universe_domain"]
-        }
-        
-        cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"Errore di connessione a Firebase: {e}")
-        st.stop()
+# --- INIZIALIZZAZIONE FIREBASE PROTETTA ---
+@st.cache_resource
+def init_firebase():
+    if not firebase_admin._apps:
+        try:
+            cred_dict = {
+                "type": st.secrets["type"],
+                "project_id": st.secrets["project_id"],
+                "private_key_id": st.secrets["private_key_id"],
+                "private_key": st.secrets["private_key"].replace("\\n", "\n"),
+                "client_email": st.secrets["client_email"],
+                "client_id": st.secrets["client_id"],
+                "auth_uri": st.secrets["auth_uri"],
+                "token_uri": st.secrets["token_uri"],
+                "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": st.secrets["client_x509_cert_url"],
+                "universe_domain": st.secrets["universe_domain"]
+            }
+            cred = credentials.Certificate(cred_dict)
+            return firebase_admin.initialize_app(cred)
+        except Exception as e:
+            return e
+    return firebase_admin.get_app()
+
+firebase_res = init_firebase()
+if isinstance(firebase_res, Exception):
+    st.error(f"Errore critico di connessione a Firebase: {firebase_res}")
+    st.stop()
 
 db = firestore.client()
 
@@ -284,7 +290,7 @@ with st.sidebar:
                 key="selettore_simulazione_side",
             )
 
-            if scelta_simulazione == "⚠️️ Simula Weekend":
+            if scelta_simulazione == "⚠️ Simula Weekend":
                 is_weekend_o_venerdi_sera = True
             elif scelta_simulazione == "🟢 Simula Feriale":
                 is_weekend_o_venerdi_sera = False
