@@ -60,7 +60,7 @@ def carica_da_firestore_cached(collezione_nome):
     except Exception as e:
         return None
 
-# Funzione non cachata per letture "live" quando serve freschezza assoluta (es. archivio o turni critici)
+# Funzione non cachata per letture "live" quando serve freschezza assoluta
 def carica_da_firestore_live(collezione_nome, default_val):
     res = carica_da_firestore_cached(collezione_nome)
     if res is None:
@@ -70,7 +70,6 @@ def carica_da_firestore_live(collezione_nome, default_val):
 def salva_su_firestore(collezione_nome, doc_id, data_dict):
     try:
         db.collection(collezione_nome).document(str(doc_id)).set(data_dict)
-        # Svuotiamo la cache così tutti vedranno subito le modifiche fresche
         st.cache_data.clear()
         return True
     except Exception as e:
@@ -80,7 +79,6 @@ def salva_su_firestore(collezione_nome, doc_id, data_dict):
 def elimina_da_firestore(collezione_nome, doc_id):
     try:
         db.collection(collezione_nome).document(str(doc_id)).delete()
-        # Svuotiamo la cache a ogni eliminazione
         st.cache_data.clear()
         return True
     except Exception as e:
@@ -132,10 +130,12 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA (ISO WEEKS) ---
+# --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA (STABILE) ---
 def get_info_settimane():
     oggi = datetime.now(tz_italia)
-    lunedi_corrente = oggi - timedelta(days=oggi.weekday())
+    giorni_da_lunedi = oggi.weekday()  # 0=Lunedì, 6=Domenica
+    lunedi_corrente = oggi - timedelta(days=giorni_da_lunedi)
+    lunedi_corrente = lunedi_corrente.replace(hour=0, minute=0, second=0, microsecond=0)
     domenica_corrente = lunedi_corrente + timedelta(days=6)
 
     lunedi_prossimo = lunedi_corrente + timedelta(days=7)
@@ -143,11 +143,10 @@ def get_info_settimane():
 
     fmt = "%d/%m/%Y"
     
-    anno_corr, num_sett_corr, _ = oggi.isocalendar()
+    anno_corr, num_sett_corr, _ = lunedi_corrente.isocalendar()
     chiave_corr = f"{anno_corr}-W{num_sett_corr:02d}"
     
-    data_prossima = oggi + timedelta(days=7)
-    anno_pros, num_sett_pros, _ = data_prossima.isocalendar()
+    anno_pros, num_sett_pros, _ = lunedi_prossimo.isocalendar()
     chiave_pros = f"{anno_pros}-W{num_sett_pros:02d}"
 
     label_corr = f"Settimana Corrente ({lunedi_corrente.strftime(fmt)} - {domenica_corrente.strftime(fmt)})"
@@ -172,16 +171,13 @@ def carica_turni_normalizzati():
     turni_grezzi = carica_da_firestore_live("turni", [])
     turni_normalizzati = []
     for t in turni_grezzi:
-        s_chiave = t.get("settimana_chiave", "")
-        s_label = t.get("settimana", "")
-        
-        if not s_chiave or "Settimana Corrente" in s_label or s_chiave == label_corr:
-            t["settimana_chiave"] = chiave_corr
-            t["settimana"] = label_corr
-        elif "Prossima Settimana" in s_label or s_chiave == label_pros:
-            t["settimana_chiave"] = chiave_pros
-            t["settimana"] = label_pros
-            
+        # Preserviamo la chiave di settimana originale salvata su Firebase per evitare slittamenti
+        if not t.get("settimana_chiave"):
+            s_label = t.get("settimana", "")
+            if "Prossima Settimana" in s_label:
+                t["settimana_chiave"] = chiave_pros
+            else:
+                t["settimana_chiave"] = chiave_corr
         turni_normalizzati.append(t)
     return turni_normalizzati
 
@@ -192,7 +188,6 @@ with st.sidebar:
     
     st.title("🐾 Menu Rapido")
     
-    # Pulsante manuale per forzare lo svuotamento della cache e ricaricare da Firebase
     if st.button("🔄 Aggiorna Dati da Firebase"):
         st.cache_data.clear()
         st.success("Dati aggiornati!")
@@ -504,7 +499,7 @@ if menu == "📅 Inserisci":
                     }
                     try:
                         db.collection("turni").document(id_turno).set(nuovo_turno)
-                        st.cache_data.clear() # Pulisce la cache per tutti
+                        st.cache_data.clear()
                         st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
                         st.rerun()
                     except Exception as e:
@@ -1147,7 +1142,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                    ]["ore_fatte"] = max(
+                                ]["ore_fatte"] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
