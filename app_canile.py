@@ -37,7 +37,7 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
-@st.cache_data(ttl=600) # La cache dura 10 minuti, ma si azzera automaticamente a ogni scrittura
+@st.cache_data(ttl=600)
 def carica_da_firestore_cached(collezione_nome):
     try:
         docs = list(db.collection(collezione_nome).stream())
@@ -60,7 +60,6 @@ def carica_da_firestore_cached(collezione_nome):
     except Exception as e:
         return None
 
-# Funzione non cachata per letture "live" quando serve freschezza assoluta
 def carica_da_firestore_live(collezione_nome, default_val):
     res = carica_da_firestore_cached(collezione_nome)
     if res is None:
@@ -85,27 +84,33 @@ def elimina_da_firestore(collezione_nome, doc_id):
         st.error(f"Errore di eliminazione: {e}")
         return False
 
-# Inizializzazione stato con Firebase
+# Inizializzazione sicura dello stato con Firebase
 if "cani" not in st.session_state:
-    cani_caricati = carica_da_firestore_live("cani", None)
-    if cani_caricati and isinstance(cani_caricati, list):
-        st.session_state.cani = cani_caricati
-    else:
-        default_cani = [
-            "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
-        ]
-        st.session_state.cani = default_cani
-        db.collection("cani").document("lista").set({"elementi": default_cani})
+    try:
+        cani_caricati = carica_da_firestore_live("cani", None)
+        if cani_caricati and isinstance(cani_caricati, list):
+            st.session_state.cani = cani_caricati
+        else:
+            default_cani = [
+                "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
+            ]
+            st.session_state.cani = default_cani
+            db.collection("cani").document("lista").set({"elementi": default_cani})
+    except Exception:
+        st.session_state.cani = ["Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"]
 
 if "volontari_db" not in st.session_state:
-    volontari_caricati = carica_da_firestore_live("volontari", None)
-    if volontari_caricati and isinstance(volontari_caricati, list):
-        st.session_state.volontari_db = volontari_caricati
-    else:
-        turni_temp = carica_da_firestore_live("turni", [])
-        nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
-        st.session_state.volontari_db = nomi_iniziali
-        db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
+    try:
+        volontari_caricati = carica_da_firestore_live("volontari", None)
+        if volontari_caricati and isinstance(volontari_caricati, list):
+            st.session_state.volontari_db = volontari_caricati
+        else:
+            turni_temp = carica_da_firestore_live("turni", [])
+            nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
+            st.session_state.volontari_db = nomi_iniziali
+            db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
+    except Exception:
+        st.session_state.volontari_db = []
 
 if "lpu_data" not in st.session_state:
     st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
@@ -267,7 +272,7 @@ with st.sidebar:
                 "Simulazione:",
                 [
                     "📅 Automatico",
-                    "⚠️️ Simula Weekend",
+                    "⚠️ Simula Weekend",
                     "🟢 Simula Feriale",
                 ],
                 key="selettore_simulazione_side",
@@ -500,7 +505,7 @@ if menu == "📅 Inserisci":
                 )
 
                 if doppione_trovato:
-                    st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
+                    st.error(f"⚠️️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                 else:
                     id_turno = str(datetime.now().timestamp())
                     nuovo_turno = {
@@ -900,7 +905,7 @@ elif menu == "📚 Archivio":
             def mostra_fascia_storica(fascia_nome, col_container):
                 with col_container:
                     with st.container(border=True):
-                        st.markdown(f"### ☀️ {fascia_nome}")
+                        st.markdown(f"### ☀️️ {fascia_nome}")
                         turni_fascia = [
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
@@ -1159,7 +1164,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ]["ore_fatte"] = max(
+                                    ]["ore_fatte"] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
