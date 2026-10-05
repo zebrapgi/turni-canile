@@ -102,36 +102,53 @@ def elimina_da_firestore(collezione_nome, doc_id):
         st.error(f"Errore di eliminazione: {e}")
         return False
 
-# Inizializzazione stato con Firebase
+# Inizializzazione stato con Firebase protetta da fallback
 if "cani" not in st.session_state:
-    cani_caricati = carica_da_firestore_live("cani", None)
-    if cani_caricati and isinstance(cani_caricati, list):
-        st.session_state.cani = cani_caricati
-    else:
-        default_cani = [
+    try:
+        cani_caricati = carica_da_firestore_live("cani", None)
+        if cani_caricati and isinstance(cani_caricati, list):
+            st.session_state.cani = cani_caricati
+        else:
+            default_cani = [
+                "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
+            ]
+            st.session_state.cani = default_cani
+            db.collection("cani").document("lista").set({"elementi": default_cani})
+    except Exception:
+        st.session_state.cani = [
             "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
         ]
-        st.session_state.cani = default_cani
-        db.collection("cani").document("lista").set({"elementi": default_cani})
 
 if "volontari_db" not in st.session_state:
-    volontari_caricati = carica_da_firestore_live("volontari", None)
-    if volontari_caricati and isinstance(volontari_caricati, list):
-        st.session_state.volontari_db = volontari_caricati
-    else:
-        turni_temp = carica_da_firestore_live("turni", [])
-        nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
-        st.session_state.volontari_db = nomi_iniziali
-        db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
+    try:
+        volontari_caricati = carica_da_firestore_live("volontari", None)
+        if volontari_caricati and isinstance(volontari_caricati, list):
+            st.session_state.volontari_db = volontari_caricati
+        else:
+            turni_temp = carica_da_firestore_live("turni", [])
+            nomi_iniziali = sorted(list(set(t.get("volontario", "").strip() for t in turni_temp if t.get("volontario"))))
+            st.session_state.volontari_db = nomi_iniziali
+            db.collection("volontari").document("lista").set({"elementi": nomi_iniziali})
+    except Exception:
+        st.session_state.volontari_db = []
 
 if "lpu_data" not in st.session_state:
-    st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
+    try:
+        st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
+    except Exception:
+        st.session_state.lpu_data = {}
 
 if "turni_lpu" not in st.session_state:
-    st.session_state.turni_lpu = carica_da_firestore_live("turni_lpu", [])
+    try:
+        st.session_state.turni_lpu = carica_da_firestore_live("turni_lpu", [])
+    except Exception:
+        st.session_state.turni_lpu = []
 
 if "turni" not in st.session_state:
-    st.session_state.turni = carica_da_firestore_live("turni", [])
+    try:
+        st.session_state.turni = carica_da_firestore_live("turni", [])
+    except Exception:
+        st.session_state.turni = []
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
@@ -284,7 +301,7 @@ with st.sidebar:
                 "Simulazione:",
                 [
                     "📅 Automatico",
-                    "⚠ Simula Weekend",
+                    "⚠️ Simula Weekend",
                     "🟢 Simula Feriale",
                 ],
                 key="selettore_simulazione_side",
@@ -942,7 +959,7 @@ elif menu == "📚 Archivio":
             st.markdown("---")
 
 elif menu == "🛠️ Gestione LPU (Admin)":
-    st.header("🛠️ Gestione Lavori Socialmente Utili (LPU)")
+    st.header("🛠️️ Gestione Lavori Socialmente Utili (LPU)")
 
     if not st.session_state.is_admin:
         st.error("Area riservata esclusivamente agli amministratori.")
