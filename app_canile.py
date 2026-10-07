@@ -68,7 +68,7 @@ def carica_da_firestore_cached(collezione_nome):
             return []
         elif collezione_nome == "lpu_data":
             return data if data else {}
-        elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
+        elif collezione_nome in ["turni", "turni_lpu", "tentativi_bloccati"]:
             lista = [doc.to_dict() for doc in docs]
             return lista if lista else []
         return {}
@@ -351,7 +351,7 @@ opzioni_base = [
 ]
 
 if st.session_state.is_admin:
-    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)"]
+    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)", "🚨 Tentativi Bloccati"]
 else:
     opzioni_menu = opzioni_base
 
@@ -524,7 +524,7 @@ if menu == "📅 Inserisci":
                 
                 volontario_normalizzato = volontario_finale.strip().lower()
                 
-                # Controllo limite massimo 3 turni settimanali per volontario (senza feedback visivo)
+                # Controllo limite massimo 3 turni settimanali per volontario (con log nascosto)
                 turni_settimana_volontario = [
                     t for t in lista_turni 
                     if t.get("volontario", "").strip().lower() == volontario_normalizzato and
@@ -542,7 +542,22 @@ if menu == "📅 Inserisci":
                 )
 
                 if limite_superato:
-                    pass  # Blocca silenziosamente l'inserimento senza mostrare errori o avvisi
+                    # Salvataggio silenzioso del tentativo bloccato su Firebase per l'Admin
+                    id_tentativo = str(datetime.now().timestamp())
+                    dati_tentativo = {
+                        "id": id_tentativo,
+                        "volontario": volontario_finale,
+                        "settimana": settimana_scelta_label,
+                        "settimana_chiave": settimana_scelta_chiave,
+                        "giorno_tentato": giorno,
+                        "fascia_tentata": fascia,
+                        "timestamp": datetime.now(tz_italia).strftime("%d/%m/%Y %H:%M:%S")
+                    }
+                    try:
+                        db.collection("tentativi_bloccati").document(id_tentativo).set(dati_tentativo)
+                    except Exception:
+                        pass
+                    # Nessun feedback visivo per l'utente (blocca silenziosamente)
                 elif doppione_trovato:
                     st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                 else:
@@ -968,6 +983,40 @@ elif menu == "📚 Archivio":
 
             st.markdown("---")
 
+elif menu == "🚨 Tentativi Bloccati":
+    st.header("🚨 Log Tentativi di Superamento Limite")
+
+    if not st.session_state.is_admin:
+        st.error("Area riservata esclusivamente agli amministratori.")
+    else:
+        st.markdown("Qui puoi monitorare se qualche volontario ha cercato di inserire più di 3 turni in una settimana.")
+        
+        tentativi_lista = carica_da_firestore_live("tentativi_bloccati", [])
+
+        if not tentativi_lista:
+            st.info("Nessun tentativo di superamento limite registrato.")
+        else:
+            if st.button("🗑️ Svuota Registro Tentativi"):
+                for tent in tentativi_lista:
+                    elimina_da_firestore("tentativi_bloccati", tent.get("id"))
+                st.success("Registro svuotato con successo!")
+                st.rerun()
+
+            st.markdown("---")
+            for tent in reversed(tentativi_lista):
+                st.markdown(
+                    f"• 👤 **{tent.get('volontario')}** | 📅 Settimana: *{tent.get('settimana')}* | "
+                    f"Tentativo per: **{tent.get('giorno_tentato')} ({tent.get('fascia_tentata')})** | "
+                    f"⏰ *{tent.get('timestamp')}*"
+                )
+                col_del_tent = st.columns([6, 1])
+                with col_del_tent[1]:
+                    if st.button("Elimina", key=f"del_tent_{tent.get('id')}"):
+                        elimina_da_firestore("tentativi_bloccati", tent.get("id"))
+                        st.success("Tentativo rimosso dal log.")
+                        st.rerun()
+                st.markdown("---")
+
 elif menu == "🛠️ Gestione LPU (Admin)":
     st.header("🛠 Gestione Lavori Socialmente Utili (LPU)")
 
@@ -1253,4 +1302,41 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     "giorno": tl["giorno"],
                                     "fascia": tl["fascia"],
                                     "orario": tl["orario"],
-                                    "ore": float(
+                                    "ore": float(nuove_ore_val),
+                                    "note": nuove_note_val
+                                }
+                                salva_su_firestore("turni_lpu", tl["id"], tl_aggiornato)
+
+                                nome_lpu_riferimento = tl.get("lpu")
+                                if (
+                                    nome_lpu_riferimento
+                                    in st.session_state.lpu_data
+                                ):
+                                    st.session_state.lpu_data[
+                                        nome_lpu_riferimento
+                                    ]["ore_fatte"] = max(
+                                        0.0,
+                                        st.session_state.lpu_data[
+                                            nome_lpu_riferimento
+                                        ]["ore_fatte"]
+                                        + differenza_ore,
+                                    )
+                                    salva_su_firestore(
+                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
+                                    )
+
+                                turno_gen_esistente = carica_da_firestore_live("turni", [])
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                if turno_gen_trovato:
+                                    turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
+                                    salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
+
+                                st.session_state[
+                                    f"editing_lpu_{tl['id']}"
+                                ] = False
+                                st.success(
+                                    "Turno LPU modificato con successo!"
+                                )
+                                st.rerun()
+
+                    st.markdown("---")
