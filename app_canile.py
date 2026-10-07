@@ -523,6 +523,16 @@ if menu == "📅 Inserisci":
                 lista_turni = carica_turni_normalizzati()
                 
                 volontario_normalizzato = volontario_finale.strip().lower()
+                
+                # Controllo limite massimo 3 turni settimanali per volontario (senza feedback visivo)
+                turni_settimana_volontario = [
+                    t for t in lista_turni 
+                    if t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                    t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave
+                ]
+                
+                limite_superato = len(turni_settimana_volontario) >= 3
+
                 doppione_trovato = any(
                     t.get("volontario", "").strip().lower() == volontario_normalizzato and
                     t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
@@ -531,7 +541,9 @@ if menu == "📅 Inserisci":
                     for t in lista_turni
                 )
 
-                if doppione_trovato:
+                if limite_superato:
+                    pass  # Blocca silenziosamente l'inserimento senza mostrare errori o avvisi
+                elif doppione_trovato:
                     st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
                 else:
                     id_turno = str(datetime.now().timestamp())
@@ -647,7 +659,7 @@ elif menu == "👀 Panoramica":
                                             st.caption("*(Modifica LPU nella tab dedicata)*")
                                     
                                     with col_del:
-                                        with st.popover(f"🗑️️ Elimina ({t['volontario']})"):
+                                        with st.popover(f"🗑 Elimina ({t['volontario']})"):
                                             st.write("Sei sicuro di voler eliminare questo turno?")
                                             if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
                                                 if t['id'].startswith("lpu_"):
@@ -1241,41 +1253,4 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     "giorno": tl["giorno"],
                                     "fascia": tl["fascia"],
                                     "orario": tl["orario"],
-                                    "ore": float(nuove_ore_val),
-                                    "note": nuove_note_val
-                                }
-                                salva_su_firestore("turni_lpu", tl["id"], tl_aggiornato)
-
-                                nome_lpu_riferimento = tl.get("lpu")
-                                if (
-                                    nome_lpu_riferimento
-                                    in st.session_state.lpu_data
-                                ):
-                                    st.session_state.lpu_data[
-                                        nome_lpu_riferimento
-                                    ]["ore_fatte"] = max(
-                                        0.0,
-                                        st.session_state.lpu_data[
-                                            nome_lpu_riferimento
-                                        ]["ore_fatte"]
-                                        + differenza_ore,
-                                    )
-                                    salva_su_firestore(
-                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
-                                    )
-
-                                turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
-                                if turno_gen_trovato:
-                                    turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
-                                    salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
-
-                                st.session_state[
-                                    f"editing_lpu_{tl['id']}"
-                                ] = False
-                                st.success(
-                                    "Turno LPU modificato con successo!"
-                                )
-                                st.rerun()
-
-                    st.markdown("---")
+                                    "ore": float(
