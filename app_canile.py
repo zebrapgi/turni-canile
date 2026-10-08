@@ -613,11 +613,19 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
                         
-                        # Ordinamento automatico per orario di inizio/arrivo
-                        turni_fascia = sorted(
-                            turni_fascia, 
-                            key=lambda x: x.get("orario", "00:00")
-                        )
+                        # Ordinamento: prima i turni normali per effettivo orario di inizio, poi gli LPU in fondo
+                        def chiave_ordinamento(t):
+                            volontario_str = t.get("volontario", "")
+                            is_lpu = 1 if ("(LPU)" in volontario_str or t['id'].startswith("lpu_")) else 0
+                            
+                            orario_str = t.get("orario", "00:00")
+                            import re
+                            match = re.search(r'\d{2}:\d{2}', orario_str)
+                            ora_inizio = match.group(0) if match else "00:00"
+                            
+                            return (is_lpu, ora_inizio)
+
+                        turni_fascia = sorted(turni_fascia, key=chiave_ordinamento)
 
                         if not turni_fascia:
                             st.caption("Nessun volontario registrato.")
@@ -1271,7 +1279,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
