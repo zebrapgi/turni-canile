@@ -1279,7 +1279,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
