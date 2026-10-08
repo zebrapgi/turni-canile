@@ -612,6 +612,12 @@ elif menu == "👀 Panoramica":
                         turni_fascia = [
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
+                        
+                        # Ordinamento automatico per orario di inizio/arrivo
+                        turni_fascia = sorted(
+                            turni_fascia, 
+                            key=lambda x: x.get("orario", "00:00")
+                        )
 
                         if not turni_fascia:
                             st.caption("Nessun volontario registrato.")
