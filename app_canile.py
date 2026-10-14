@@ -647,9 +647,12 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Ordinamento: prima i volontari normali (ordinati per orario), e gli LPU sempre in fondo
+                        # Funzione di ordinamento rigorosa: prima i cani per orario, LPU sempre in fondo
                         def ottieni_ordinamento_turno(turno):
-                            is_lpu = 1 if (turno.get("id", "").startswith("lpu_") or "(LPU)" in turno.get("volontario", "")) else 0
+                            id_t = str(turno.get("id", ""))
+                            vol_t = str(turno.get("volontario", ""))
+                            is_lpu = 1 if (id_t.startswith("lpu_") or "(LPU)" in vol_t) else 0
+                            
                             orario_str = turno.get("orario", "00:00")
                             try:
                                 parte_ora = orario_str.replace("Dalle ", "").split("-")[0].strip()
@@ -1446,7 +1449,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
