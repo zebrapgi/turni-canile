@@ -155,6 +155,36 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
+# --- FUNZIONE CALCOLO ETA AUTOMATICO ---
+def calcola_eta(data_nascita_str):
+    if not data_nascita_str or data_nascita_str == "N/D":
+        return "N/D"
+    try:
+        data_nascita = datetime.strptime(data_nascita_str, "%d/%m/%Y").date()
+        oggi = datetime.now(tz_italia).date()
+        
+        # Calcolo differenze in anni e mesi
+        anni = oggi.year - data_nascita.year
+        mesi = oggi.month - data_nascita.month
+        giorni = oggi.day - data_nascita.day
+        
+        if giorni < 0:
+            mesi -= 1
+        if mesi < 0:
+            anni -= 1
+            mesi += 12
+            
+        if anni == 0 and mesi == 0:
+            return "Cucciolo (meno di un mese)"
+        elif anni == 0:
+            return f"{mesi} {'mese' if mesi == 1 else 'mesi'}"
+        elif anni < 2 and mesi > 0:
+            return f"{anni} {'anno' if anni == 1 else 'anni'} e {mesi} {'mese' if mesi == 1 else 'mesi'}"
+        else:
+            return f"{anni} {'anno' if anni == 1 else 'anni'}"
+    except Exception:
+        return "N/D"
+
 # --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA (STABILE) ---
 def get_info_settimane():
     oggi = datetime.now(tz_italia)
@@ -751,13 +781,11 @@ elif menu == "🐶 Cani":
                 n_cane = st.text_input("Nome del cane:")
                 col_i1, col_i2 = st.columns(2)
                 with col_i1:
-                    eta_cane = st.text_input("Età (es. 3 anni / cucciolo):")
                     sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
+                    data_nascita_cane = st.date_input("Data di nascita:", value=datetime.now().date())
                 with col_i2:
-                    data_nascita_cane = st.date_input("Data di nascita (stimata o certa):", value=datetime.now().date())
                     taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"])
-                
-                data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
+                    data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
                 
                 btn_salva_nuovo_cane = st.form_submit_button("Salva Cane e Scheda 📝")
                 if btn_salva_nuovo_cane:
@@ -767,7 +795,6 @@ elif menu == "🐶 Cani":
                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                         
                         dettagli_nuovi = {
-                            "eta": eta_cane,
                             "sesso": sesso_cane,
                             "data_nascita": data_nascita_cane.strftime("%d/%m/%Y"),
                             "taglia": taglia_cane,
@@ -788,18 +815,20 @@ elif menu == "🐶 Cani":
     else:
         for dog in sorted(st.session_state.cani):
             info_d = st.session_state.cani_dettagli.get(dog, {})
-            eta_str = info_d.get("eta", "N/D")
             sesso_str = info_d.get("sesso", "N/D")
             nascita_str = info_d.get("data_nascita", "N/D")
             taglia_str = info_d.get("taglia", "N/D")
             entrata_str = info_d.get("data_entrata", "N/D")
+
+            # Calcolo automatico dell'età in base alla data di nascita
+            eta_calcolata = calcola_eta(nascita_str)
 
             with st.container(border=True):
                 col_s1, col_s2 = st.columns([3, 1])
                 with col_s1:
                     st.markdown(f"### 🐾 {dog}")
                     st.markdown(f"• **Sesso:** {sesso_str} | **Taglia:** {taglia_str}")
-                    st.markdown(f"• **Età:** {eta_str} (Nascita: {nascita_str})")
+                    st.markdown(f"• **Età:** {eta_calcolata} (Nascita: {nascita_str})")
                     st.markdown(f"• **In canile dal:** `{entrata_str}`")
                 
                 with col_s2:
@@ -839,10 +868,8 @@ elif menu == "🐶 Cani":
             if st.session_state.is_admin and st.session_state.get(f"edit_dog_{dog}", False):
                 with st.form(key=f"form_mod_scheda_{dog}"):
                     st.subheader(f"Modifica Scheda di {dog}")
-                    m_eta = st.text_input("Età:", value=eta_str, key=f"m_eta_{dog}")
                     m_sesso = st.selectbox("Sesso:", ["Maschio", "Femmina"], index=0 if sesso_str=="Maschio" else 1, key=f"m_sesso_{dog}")
                     
-                    # Prova a parsare la data di nascita se presente
                     try:
                         val_nas = datetime.strptime(nascita_str, "%d/%m/%Y").date()
                     except:
@@ -862,7 +889,6 @@ elif menu == "🐶 Cani":
                     btn_salva_mod_scheda = st.form_submit_button("Salva Modifiche Scheda ✅")
                     if btn_salva_mod_scheda:
                         dettagli_aggiornati = {
-                            "eta": m_eta,
                             "sesso": m_sesso,
                             "data_nascita": m_nascita.strftime("%d/%m/%Y"),
                             "taglia": m_taglia,
