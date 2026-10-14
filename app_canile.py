@@ -647,17 +647,18 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Funzione di estrazione orario di inizio per ordinamento cronologico rigoroso
-                        def ottieni_orario_inizio(turno):
+                        # Ordinamento: prima i volontari normali (ordinati per orario), e gli LPU sempre in fondo
+                        def ottieni_ordinamento_turno(turno):
+                            is_lpu = 1 if (turno.get("id", "").startswith("lpu_") or "(LPU)" in turno.get("volontario", "")) else 0
                             orario_str = turno.get("orario", "00:00")
                             try:
                                 parte_ora = orario_str.replace("Dalle ", "").split("-")[0].strip()
-                                return datetime.strptime(parte_ora, "%H:%M").time()
+                                ora_inizio = datetime.strptime(parte_ora, "%H:%M").time()
                             except:
-                                return time(0, 0)
+                                ora_inizio = time(0, 0)
+                            return (is_lpu, ora_inizio)
 
-                        # ORDINAMENTO FORZATO: chi arriva prima (es. 14:00) sta sopra chi arriva dopo (es. 16:00), indipendentemente dall'inserimento
-                        turni_fascia_ordinati = sorted(turni_fascia, key=ottieni_orario_inizio)
+                        turni_fascia_ordinati = sorted(turni_fascia, key=ottieni_ordinamento_turno)
 
                         if not turni_fascia_ordinati:
                             st.caption("Nessun volontario registrato.")
