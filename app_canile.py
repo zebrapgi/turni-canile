@@ -377,12 +377,11 @@ if st.session_state.is_admin:
     ]
     menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 else:
-    opzioni_principali = ["📅 Inserisci", "👀 Panoramica", "📁 Altro"]
+    opzioni_principali = ["📅 Inserisci", "👀 Panoramica", "🐶 Cani", "📁 Altro"]
     menu_principale = st.pills("Seleziona sezione:", opzioni_principali, default="📅 Inserisci")
 
     if menu_principale == "📁 Altro":
         sub_opzioni = [
-            "🐶 Cani",
             "📊 Statistiche",
             "📚 Archivio Settimane",
             "🏡 Archivio Cani Adottati",
@@ -812,7 +811,17 @@ elif menu == "🐶 Cani":
     if not st.session_state.cani:
         st.info("Nessun cane registrato nel sistema.")
     else:
-        for dog in sorted(st.session_state.cani):
+        # Ordinamento dei cani per data di entrata in canile (dal più vecchio al più recente)
+        def ottieni_data_entrata(nome_cane):
+            d = st.session_state.cani_dettagli.get(nome_cane, {}).get("data_entrata", "01/01/2000")
+            try:
+                return datetime.strptime(d, "%d/%m/%Y")
+            except:
+                return datetime(2000, 1, 1)
+
+        cani_ordinati_per_entrata = sorted(st.session_state.cani, key=ottieni_data_entrata)
+
+        for dog in cani_ordinati_per_entrata:
             info_d = st.session_state.cani_dettagli.get(dog, {})
             sesso_str = info_d.get("sesso", "N/D")
             nascita_str = info_d.get("data_nascita", "N/D")
@@ -844,7 +853,6 @@ elif menu == "🐶 Cani":
                                         st.session_state.cani.remove(dog)
                                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                                     
-                                    # Salviamo la scheda completa nell'archivio
                                     dati_archivio = {
                                         "nome": dog,
                                         "sesso": sesso_str,
