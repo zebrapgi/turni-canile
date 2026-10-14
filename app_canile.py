@@ -329,24 +329,33 @@ with st.container():
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
-# --- MENU PRINCIPALE OTTIMIZZATO ---
-opzioni_principali = ["📅 Inserisci", "👀 Panoramica", "📁 Altro"]
-menu_principale = st.pills("Seleziona sezione:", opzioni_principali, default="📅 Inserisci")
-
-# Gestione della sezione "Altro" con un sottomenu pulito
-if menu_principale == "📁 Altro":
-    sub_opzioni = [
+# --- MENU PRINCIPALE (DINAMICO PER ADMIN / VOLONTARI) ---
+if st.session_state.is_admin:
+    opzioni_menu = [
+        "📅 Inserisci",
+        "👀 Panoramica",
         "🐶 Cani",
         "📊 Statistiche",
-        "📚 Archivio Settimane",
+        "📚 Archivio",
+        "👥 Volontari",
+        "🛠️ Gestione LPU (Admin)",
         "🏡 Archivio Cani Adottati",
     ]
-    if st.session_state.is_admin:
-        sub_opzioni += ["👥 Volontari", "🛠️ Gestione LPU (Admin)"]
-    
-    menu = st.selectbox("Seleziona una voce dall'archivio / gestione:", sub_opzioni, key="sottomenu_altro")
+    menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 else:
-    menu = menu_principale
+    opzioni_principali = ["📅 Inserisci", "👀 Panoramica", "📁 Altro"]
+    menu_principale = st.pills("Seleziona sezione:", opzioni_principali, default="📅 Inserisci")
+
+    if menu_principale == "📁 Altro":
+        sub_opzioni = [
+            "🐶 Cani",
+            "📊 Statistiche",
+            "📚 Archivio Settimane",
+            "🏡 Archivio Cani Adottati",
+        ]
+        menu = st.selectbox("Seleziona una voce dall'archivio / gestione:", sub_opzioni, key="sottomenu_altro")
+    else:
+        menu = menu_principale
 
 st.markdown("---")
 
@@ -936,7 +945,7 @@ elif menu == "📊 Statistiche":
             ).sort_values(by="Uscite", ascending=False).reset_index(drop=True)
             st.dataframe(df_tabella, use_container_width=True)
 
-elif menu == "📚 Archivio Settimane":
+elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
     st.header("📚 Archivio Storico delle Settimane Passate")
     
     tutti_i_turni = carica_turni_normalizzati()
