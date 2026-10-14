@@ -22,37 +22,22 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE PROTETTA E SICURA ---
-@st.cache_resource
-def init_firebase():
-    if not firebase_admin._apps:
-        try:
-            cred_dict = {
-                "type": st.secrets["type"],
-                "project_id": st.secrets["project_id"],
-                "private_key_id": st.secrets["private_key_id"],
-                "private_key": st.secrets["private_key"].replace("\\n", "\n"),
-                "client_email": st.secrets["client_email"],
-                "client_id": st.secrets["client_id"],
-                "auth_uri": st.secrets["auth_uri"],
-                "token_uri": st.secrets["token_uri"],
-                "auth_provider_x509_cert_url": st.secrets["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": st.secrets["client_x509_cert_url"],
-                "universe_domain": st.secrets["universe_domain"]
-            }
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        except Exception as e:
-            return e
-    return firestore.client()
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
+if not firebase_admin._apps:
+    try:
+        firebase_json_str = st.secrets["FIREBASE_JSON"]
+        cred_dict = json.loads(firebase_json_str)
+        
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Errore di connessione a Firebase: {e}")
+        st.stop()
 
-db = init_firebase()
-if isinstance(db, Exception):
-    st.error(f"Errore critico di connessione a Firebase: {db}")
-    st.stop()
+db = firestore.client()
 
 # --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
-@st.cache_data(ttl=600) # La cache dura 10 minuti, ma si azzera automaticamente a ogni scrittura
+@st.cache_data(ttl=600)
 def carica_da_firestore_cached(collezione_nome):
     try:
         docs = list(db.collection(collezione_nome).stream())
@@ -66,9 +51,9 @@ def carica_da_firestore_cached(collezione_nome):
             if "lista" in data:
                 return data["lista"].get("elementi", [])
             return []
-        elif collezione_nome == "lpu_data":
+        elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio":
             return data if data else {}
-        elif collezione_nome in ["turni", "turni_lpu"]:
+        elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
             lista = [doc.to_dict() for doc in docs]
             return lista if lista else []
         return {}
@@ -99,7 +84,7 @@ def elimina_da_firestore(collezione_nome, doc_id):
         st.error(f"Errore di eliminazione: {e}")
         return False
 
-# Inizializzazione stato con Firebase protetta da fallback
+# Inizializzazione sicura dello stato con Firebase
 if "cani" not in st.session_state:
     try:
         cani_caricati = carica_da_firestore_live("cani", None)
@@ -112,9 +97,7 @@ if "cani" not in st.session_state:
             st.session_state.cani = default_cani
             db.collection("cani").document("lista").set({"elementi": default_cani})
     except Exception:
-        st.session_state.cani = [
-            "Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"
-        ]
+        st.session_state.cani = ["Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"]
 
 if "volontari_db" not in st.session_state:
     try:
@@ -130,22 +113,16 @@ if "volontari_db" not in st.session_state:
         st.session_state.volontari_db = []
 
 if "lpu_data" not in st.session_state:
-    try:
-        st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
-    except Exception:
-        st.session_state.lpu_data = {}
+    st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
+
+if "cani_archivio" not in st.session_state:
+    st.session_state.cani_archivio = carica_da_firestore_live("cani_archivio", {})
 
 if "turni_lpu" not in st.session_state:
-    try:
-        st.session_state.turni_lpu = carica_da_firestore_live("turni_lpu", [])
-    except Exception:
-        st.session_state.turni_lpu = []
+    st.session_state.turni_lpu = carica_da_firestore_live("turni_lpu", [])
 
 if "turni" not in st.session_state:
-    try:
-        st.session_state.turni = carica_da_firestore_live("turni", [])
-    except Exception:
-        st.session_state.turni = []
+    st.session_state.turni = carica_da_firestore_live("turni", [])
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
@@ -350,7 +327,7 @@ opzioni_base = [
 ]
 
 if st.session_state.is_admin:
-    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)"]
+    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)", "🏡 Archivio Cani (Admin)"]
 else:
     opzioni_menu = opzioni_base
 
@@ -522,7 +499,6 @@ if menu == "📅 Inserisci":
                 lista_turni = carica_turni_normalizzati()
                 
                 volontario_normalizzato = volontario_finale.strip().lower()
-
                 doppione_trovato = any(
                     t.get("volontario", "").strip().lower() == volontario_normalizzato and
                     t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
@@ -612,20 +588,6 @@ elif menu == "👀 Panoramica":
                         turni_fascia = [
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
-                        
-                        # Ordinamento: prima i turni normali per effettivo orario di inizio, poi gli LPU in fondo
-                        def chiave_ordinamento(t):
-                            volontario_str = t.get("volontario", "")
-                            is_lpu = 1 if ("(LPU)" in volontario_str or t['id'].startswith("lpu_")) else 0
-                            
-                            orario_str = t.get("orario", "00:00")
-                            import re
-                            match = re.search(r'\d{2}:\d{2}', orario_str)
-                            ora_inizio = match.group(0) if match else "00:00"
-                            
-                            return (is_lpu, ora_inizio)
-
-                        turni_fascia = sorted(turni_fascia, key=chiave_ordinamento)
 
                         if not turni_fascia:
                             st.caption("Nessun volontario registrato.")
@@ -661,7 +623,7 @@ elif menu == "👀 Panoramica":
                                             st.caption("*(Modifica LPU nella tab dedicata)*")
                                     
                                     with col_del:
-                                        with st.popover(f"🗑 Elimina ({t['volontario']})"):
+                                        with st.popover(f"🗑️ Elimina ({t['volontario']})"):
                                             st.write("Sei sicuro di voler eliminare questo turno?")
                                             if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
                                                 if t['id'].startswith("lpu_"):
@@ -777,18 +739,36 @@ elif menu == "🐶 Cani":
 
         st.subheader("Lista attuale dei cani in canile:")
         for dog in st.session_state.cani:
-            col_d1, col_d2 = st.columns([4, 1])
+            col_d1, col_d2 = st.columns([3, 2])
             with col_d1:
                 st.write(f"🐾 **{dog}**")
             with col_d2:
-                with st.popover("Elimina"):
-                    st.write(f"Confermi l'eliminazione di {dog}?")
-                    if st.button("Sì, elimina", key=f"conf_del_dog_{dog}"):
-                        st.session_state.cani.remove(dog)
-                        db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
-                        st.cache_data.clear()
-                        st.success(f"Cane '{dog}' eliminato.")
-                        st.rerun()
+                with st.popover(f"🏡 Segna Adottato ({dog})"):
+                    st.write(f"Archiviazione di **{dog}** per adozione.")
+                    with st.form(key=f"form_adozione_{dog}"):
+                        data_entrata = st.date_input("Data di entrata in canile:", key=f"entrata_{dog}")
+                        data_uscita = st.date_input("Data di adozione (uscita):", key=f"uscita_{dog}")
+                        note_adozione = st.text_area("Note / Famiglia adottiva (opzionale):", key=f"note_adoz_{dog}")
+                        
+                        btn_conferma_adozione = st.form_submit_button("Conferma Adozione e Archivia 🏡")
+                        if btn_conferma_adozione:
+                            # Rimuovi dalla lista attiva
+                            if dog in st.session_state.cani:
+                                st.session_state.cani.remove(dog)
+                                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                            
+                            # Salva in archivio
+                            dati_archivio = {
+                                "nome": dog,
+                                "data_entrata": data_entrata.strftime("%d/%m/%Y"),
+                                "data_uscita": data_uscita.strftime("%d/%m/%Y"),
+                                "note": note_adozione
+                            }
+                            st.session_state.cani_archivio[dog] = dati_archivio
+                            salva_su_firestore("cani_archivio", dog, dati_archivio)
+                            
+                            st.success(f"Cane '{dog}' spostato nell'archivio adozioni con successo!")
+                            st.rerun()
 
 elif menu == "👥 Volontari":
     st.header("Gestione Anagrafica Volontari")
@@ -822,6 +802,43 @@ elif menu == "👥 Volontari":
                         db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
                         st.cache_data.clear()
                         st.success(f"Volontario '{vol}' eliminato.")
+                        st.rerun()
+
+elif menu == "🏡 Archivio Cani (Admin)":
+    st.header("🏡 Archivio Cani Adottati")
+
+    if not st.session_state.is_admin:
+        st.error("Area riservata esclusivamente agli amministratori.")
+    else:
+        st.markdown("Elenco dei cani adottati e storicizzati con relative date di entrata e uscita.")
+        
+        archivio_corrente = carica_da_firestore_live("cani_archivio", {})
+        
+        if not archivio_corrente:
+            st.info("Nessun cane presente nell'archivio adozioni.")
+        else:
+            dati_tabella_cani = []
+            for nome_c, info_c in archivio_corrente.items():
+                dati_tabella_cani.append({
+                    "Nome": info_c.get("nome", nome_c),
+                    "Data Entrata": info_c.get("data_entrata", "N/D"),
+                    "Data Uscita (Adozione)": info_c.get("data_uscita", "N/D"),
+                    "Note": info_c.get("note", "")
+                })
+            
+            df_cani_arch = pd.DataFrame(dati_tabella_cani)
+            st.dataframe(df_cani_arch, use_container_width=True)
+            
+            st.markdown("### 🗑️ Gestione Archivio Cani")
+            for nome_c in list(archivio_corrente.keys()):
+                col_ac1, col_ac2 = st.columns([3, 1])
+                with col_ac1:
+                    st.write(f"🐾 **{nome_c}** (Entrata: {archivio_corrente[nome_c].get('data_entrata')} | Uscita: {archivio_corrente[nome_c].get('data_uscita')})")
+                with col_ac2:
+                    if st.button("Elimina Definitivamente 🛑", key=f"btn_del_arch_{nome_c}"):
+                        del archivio_corrente[nome_c]
+                        elimina_da_firestore("cani_archivio", nome_c)
+                        st.success(f"Record di {nome_c} eliminato dall'archivio.")
                         st.rerun()
 
 elif menu == "📊 Statistiche":
@@ -971,7 +988,7 @@ elif menu == "📚 Archivio":
             st.markdown("---")
 
 elif menu == "🛠️ Gestione LPU (Admin)":
-    st.header("🛠 Gestione Lavori Socialmente Utili (LPU)")
+    st.header("🛠️ Gestione Lavori Socialmente Utili (LPU)")
 
     if not st.session_state.is_admin:
         st.error("Area riservata esclusivamente agli amministratori.")
