@@ -647,14 +647,26 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        if not turni_fascia:
+                        # Funzione per ordinare i turni cronologicamente in base all'orario di inizio
+                        def ottieni_orario_inizio(turno):
+                            orario_str = turno.get("orario", "00:00")
+                            try:
+                                # Estrae la prima parte dell'orario (es. "14:30" da "14:30 - 18:00" o "Dalle 14:30")
+                                parte_ora = orario_str.replace("Dalle ", "").split("-")[0].strip()
+                                return datetime.strptime(parte_ora, "%H:%M").time()
+                            except:
+                                return time(0, 0)
+
+                        turni_fascia_ordinati = sorted(turni_fascia, key=ottieni_orario_inizio)
+
+                        if not turni_fascia_ordinati:
                             st.caption("Nessun volontario registrato.")
                             st.markdown("**Cani scoperti:**")
                             for c in sorted(st.session_state.cani):
                                 st.error(f"❌ {c}")
                         else:
                             st.markdown("**Volontari presenti:**")
-                            for t in turni_fascia:
+                            for t in turni_fascia_ordinati:
                                 cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else ""
                                 if cani_str:
                                     dettaglio_mostra = f"🐾 [{cani_str}]"
@@ -749,7 +761,7 @@ elif menu == "👀 Panoramica":
                             st.markdown("---")
                             st.markdown("**Cani scoperti:**")
                             cani_coperti = set()
-                            for t in turni_fascia:
+                            for t in turni_fascia_ordinati:
                                 for c in t.get("cani_fatti", []):
                                     cani_coperti.add(c)
 
