@@ -755,7 +755,7 @@ elif menu == "🐶 Cani":
                     sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
                 with col_i2:
                     data_nascita_cane = st.date_input("Data di nascita (stimata o certa):", value=datetime.now().date())
-                    taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media", "Grande"])
+                    taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"])
                 
                 data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
                 
@@ -804,6 +804,7 @@ elif menu == "🐶 Cani":
                 
                 with col_s2:
                     if st.session_state.is_admin:
+                        # Popover per Segnare Adottato
                         with st.popover(f"🏡 Segna Adottato"):
                             st.write(f"Adozione di **{dog}**.")
                             with st.form(key=f"form_adozione_{dog}"):
@@ -828,6 +829,50 @@ elif menu == "🐶 Cani":
                                     
                                     st.success(f"Cane '{dog}' archiviato con successo!")
                                     st.rerun()
+
+                        # Pulsante per Modificare la Scheda del Cane Esistente
+                        if st.button(f"✏️ Modifica Scheda", key=f"btn_edit_scheda_{dog}"):
+                            st.session_state[f"edit_dog_{dog}"] = not st.session_state.get(f"edit_dog_{dog}", False)
+                            st.rerun()
+
+            # Form di modifica scheda (se attivato dall'admin)
+            if st.session_state.is_admin and st.session_state.get(f"edit_dog_{dog}", False):
+                with st.form(key=f"form_mod_scheda_{dog}"):
+                    st.subheader(f"Modifica Scheda di {dog}")
+                    m_eta = st.text_input("Età:", value=eta_str, key=f"m_eta_{dog}")
+                    m_sesso = st.selectbox("Sesso:", ["Maschio", "Femmina"], index=0 if sesso_str=="Maschio" else 1, key=f"m_sesso_{dog}")
+                    
+                    # Prova a parsare la data di nascita se presente
+                    try:
+                        val_nas = datetime.strptime(nascita_str, "%d/%m/%Y").date()
+                    except:
+                        val_nas = datetime.now().date()
+                    m_nascita = st.date_input("Data di nascita:", value=val_nas, key=f"m_nascita_{dog}")
+                    
+                    opzioni_taglie = ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"]
+                    idx_taglia = opzioni_taglie.index(taglia_str) if taglia_str in opzioni_taglie else 2
+                    m_taglia = st.selectbox("Taglia:", opzioni_taglie, index=idx_taglia, key=f"m_taglia_{dog}")
+                    
+                    try:
+                        val_ent = datetime.strptime(entrata_str, "%d/%m/%Y").date()
+                    except:
+                        val_ent = datetime.now().date()
+                    m_entrata = st.date_input("Data di entrata in canile:", value=val_ent, key=f"m_entrata_{dog}")
+                    
+                    btn_salva_mod_scheda = st.form_submit_button("Salva Modifiche Scheda ✅")
+                    if btn_salva_mod_scheda:
+                        dettagli_aggiornati = {
+                            "eta": m_eta,
+                            "sesso": m_sesso,
+                            "data_nascita": m_nascita.strftime("%d/%m/%Y"),
+                            "taglia": m_taglia,
+                            "data_entrata": m_entrata.strftime("%d/%m/%Y")
+                        }
+                        st.session_state.cani_dettagli[dog] = dettagli_aggiornati
+                        salva_su_firestore("cani_dettagli", dog, dettagli_aggiornati)
+                        st.session_state[f"edit_dog_{dog}"] = False
+                        st.success(f"Scheda di {dog} aggiornata con successo!")
+                        st.rerun()
 
 elif menu == "👥 Volontari":
     st.header("Gestione Anagrafica Volontari")
