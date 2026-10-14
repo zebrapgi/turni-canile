@@ -364,7 +364,7 @@ with st.container():
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE (DINAMICO PER ADMIN / VOLONTARI) ---
-[cite: 1] if st.session_state.is_admin:
+if st.session_state.is_admin:
     opzioni_menu = [
         "📅 Inserisci",
         "👀 Panoramica",
@@ -549,7 +549,7 @@ if menu == "📅 Inserisci":
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
             else:
-                [cite: 1] if volontario_finale not in st.session_state.volontari_db:
+                if volontario_finale not in st.session_state.volontari_db:
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
                     st.cache_data.clear()
@@ -647,7 +647,7 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Ordinamento cronologico basato sull'orario di inizio effettivo
+                        # Funzione di estrazione orario di inizio per ordinamento cronologico rigoroso
                         def ottieni_orario_inizio(turno):
                             orario_str = turno.get("orario", "00:00")
                             try:
@@ -656,6 +656,7 @@ elif menu == "👀 Panoramica":
                             except:
                                 return time(0, 0)
 
+                        # ORDINAMENTO FORZATO: chi arriva prima (es. 14:00) sta sopra chi arriva dopo (es. 16:00), indipendentemente dall'inserimento
                         turni_fascia_ordinati = sorted(turni_fascia, key=ottieni_orario_inizio)
 
                         if not turni_fascia_ordinati:
