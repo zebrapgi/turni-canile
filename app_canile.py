@@ -364,7 +364,7 @@ with st.container():
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE (DINAMICO PER ADMIN / VOLONTARI) ---
-if st.session_state.is_admin:
+[cite: 1] if st.session_state.is_admin:
     opzioni_menu = [
         "📅 Inserisci",
         "👀 Panoramica",
@@ -549,7 +549,7 @@ if menu == "📅 Inserisci":
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
             else:
-                if volontario_finale not in st.session_state.volontari_db:
+                [cite: 1] if volontario_finale not in st.session_state.volontari_db:
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
                     st.cache_data.clear()
@@ -647,11 +647,10 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Funzione per ordinare i turni cronologicamente in base all'orario di inizio
+                        # Ordinamento cronologico basato sull'orario di inizio effettivo
                         def ottieni_orario_inizio(turno):
                             orario_str = turno.get("orario", "00:00")
                             try:
-                                # Estrae la prima parte dell'orario (es. "14:30" da "14:30 - 18:00" o "Dalle 14:30")
                                 parte_ora = orario_str.replace("Dalle ", "").split("-")[0].strip()
                                 return datetime.strptime(parte_ora, "%H:%M").time()
                             except:
@@ -823,7 +822,6 @@ elif menu == "🐶 Cani":
     if not st.session_state.cani:
         st.info("Nessun cane registrato nel sistema.")
     else:
-        # Ordinamento dei cani per data di entrata in canile (dal più vecchio al più recente)
         def ottieni_data_entrata(nome_cane):
             d = st.session_state.cani_dettagli.get(nome_cane, {}).get("data_entrata", "01/01/2000")
             try:
