@@ -163,7 +163,6 @@ def calcola_eta(data_nascita_str):
         data_nascita = datetime.strptime(data_nascita_str, "%d/%m/%Y").date()
         oggi = datetime.now(tz_italia).date()
         
-        # Calcolo differenze in anni e mesi
         anni = oggi.year - data_nascita.year
         mesi = oggi.month - data_nascita.month
         giorni = oggi.day - data_nascita.day
@@ -820,7 +819,6 @@ elif menu == "🐶 Cani":
             taglia_str = info_d.get("taglia", "N/D")
             entrata_str = info_d.get("data_entrata", "N/D")
 
-            # Calcolo automatico dell'età in base alla data di nascita
             eta_calcolata = calcola_eta(nascita_str)
 
             with st.container(border=True):
@@ -833,7 +831,6 @@ elif menu == "🐶 Cani":
                 
                 with col_s2:
                     if st.session_state.is_admin:
-                        # Popover per Segnare Adottato
                         with st.popover(f"🏡 Segna Adottato"):
                             st.write(f"Adozione di **{dog}**.")
                             with st.form(key=f"form_adozione_{dog}"):
@@ -847,8 +844,13 @@ elif menu == "🐶 Cani":
                                         st.session_state.cani.remove(dog)
                                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                                     
+                                    # Salviamo la scheda completa nell'archivio
                                     dati_archivio = {
                                         "nome": dog,
+                                        "sesso": sesso_str,
+                                        "data_nascita": nascita_str,
+                                        "taglia": taglia_str,
+                                        "eta_al_momento": eta_calcolata,
                                         "data_entrata": entrata_str,
                                         "data_uscita": data_uscita.strftime("%d/%m/%Y"),
                                         "note": note_adozione
@@ -859,12 +861,10 @@ elif menu == "🐶 Cani":
                                     st.success(f"Cane '{dog}' archiviato con successo!")
                                     st.rerun()
 
-                        # Pulsante per Modificare la Scheda del Cane Esistente
                         if st.button(f"✏️ Modifica Scheda", key=f"btn_edit_scheda_{dog}"):
                             st.session_state[f"edit_dog_{dog}"] = not st.session_state.get(f"edit_dog_{dog}", False)
                             st.rerun()
 
-            # Form di modifica scheda (se attivato dall'admin)
             if st.session_state.is_admin and st.session_state.get(f"edit_dog_{dog}", False):
                 with st.form(key=f"form_mod_scheda_{dog}"):
                     st.subheader(f"Modifica Scheda di {dog}")
@@ -936,34 +936,36 @@ elif menu == "👥 Volontari":
 
 elif menu == "🏡 Archivio Cani Adottati":
     st.header("🏡 Archivio Cani Adottati")
-    st.markdown("Elenco pubblico dei cani adottati e storicizzati con relative date di entrata e uscita.")
+    st.markdown("Elenco dei cani adottati con relative schede e date storiche.")
     
     archivio_corrente = carica_da_firestore_live("cani_archivio", {})
     
     if not archivio_corrente:
         st.info("Nessun cane presente nell'archivio adozioni.")
     else:
-        dati_tabella_cani = []
         for nome_c, info_c in archivio_corrente.items():
-            dati_tabella_cani.append({
-                "Nome": info_c.get("nome", nome_c),
-                "Data Entrata": info_c.get("data_entrata", "N/D"),
-                "Data Uscita (Adozione)": info_c.get("data_uscita", "N/D"),
-                "Note": info_c.get("note", "")
-            })
-        
-        df_cani_arch = pd.DataFrame(dati_tabella_cani)
-        st.dataframe(df_cani_arch, use_container_width=True)
-        
-        if st.session_state.is_admin:
-            st.markdown("---")
-            st.markdown("### 🗑️ Gestione Archivio Cani (Riservato Admin)")
-            for nome_c in list(archivio_corrente.keys()):
-                col_ac1, col_ac2 = st.columns([3, 1])
-                with col_ac1:
-                    st.write(f"🐾 **{nome_c}** (Entrata: {archivio_corrente[nome_c].get('data_entrata')} | Uscita: {archivio_corrente[nome_c].get('data_uscita')})")
-                with col_ac2:
-                    if st.button("Elimina Definitivamente 🛑", key=f"btn_del_arch_{nome_c}"):
+            s_sesso = info_c.get("sesso", "N/D")
+            s_taglia = info_c.get("taglia", "N/D")
+            s_nas = info_c.get("data_nascita", "N/D")
+            s_ent = info_c.get("data_entrata", "N/D")
+            s_usc = info_c.get("data_uscita", "N/D")
+            s_note = info_c.get("note", "Nessuna nota")
+
+            with st.container(border=True):
+                st.markdown(f"### 🐾 {nome_c}")
+                col_ar1, col_ar2 = st.columns(2)
+                with col_ar1:
+                    st.markdown(f"• **Sesso:** {s_sesso} | **Taglia:** {s_taglia}")
+                    st.markdown(f"• **Data di Nascita:** {s_nas}")
+                with col_ar2:
+                    st.markdown(f"• **Entrata in canile:** `{s_ent}`")
+                    st.markdown(f"• **Data adozione (Uscita):** `{s_usc}`")
+                
+                if s_note:
+                    st.info(f"📝 **Note adozione / Famiglia:** {s_note}")
+
+                if st.session_state.is_admin:
+                    if st.button("Elimina Record Definitivamente 🛑", key=f"btn_del_arch_{nome_c}"):
                         del archivio_corrente[nome_c]
                         elimina_da_firestore("cani_archivio", nome_c)
                         st.success(f"Record di {nome_c} eliminato dall'archivio.")
