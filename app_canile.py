@@ -22,11 +22,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA ---
+# --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA (TOML Nativo) ---
 if not firebase_admin._apps:
     try:
-        firebase_json_str = st.secrets["FIREBASE_JSON"]
-        cred_dict = json.loads(firebase_json_str)
+        raw_secrets = st.secrets["FIREBASE_JSON"]
+        cred_dict = {
+            "type": raw_secrets["type"],
+            "project_id": raw_secrets["project_id"],
+            "private_key_id": raw_secrets["private_key_id"],
+            "private_key": raw_secrets["private_key"].replace("\\n", "\n"),
+            "client_email": raw_secrets["client_email"],
+            "client_id": raw_secrets["client_id"],
+            "auth_uri": raw_secrets["auth_uri"],
+            "token_uri": raw_secrets["token_uri"],
+            "auth_provider_x509_cert_url": raw_secrets["auth_provider_x509_cert_url"],
+            "client_x509_cert_url": raw_secrets["client_x509_cert_url"],
+            "universe_domain": raw_secrets.get("universe_domain", "googleapis.com")
+        }
         
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
