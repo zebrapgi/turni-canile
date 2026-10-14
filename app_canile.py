@@ -59,6 +59,8 @@ def carica_da_firestore_cached(collezione_nome):
             if "lista" in data:
                 return data["lista"].get("elementi", [])
             return []
+        elif collezione_nome == "cani_dettagli":
+            return data if data else {}
         elif collezione_nome == "volontari":
             if "lista" in data:
                 return data["lista"].get("elementi", [])
@@ -110,6 +112,9 @@ if "cani" not in st.session_state:
             db.collection("cani").document("lista").set({"elementi": default_cani})
     except Exception:
         st.session_state.cani = ["Marley", "Diego", "Lucky", "Macchia", "Sami", "Bonnie", "Giada", "Nelson", "Amber"]
+
+if "cani_dettagli" not in st.session_state:
+    st.session_state.cani_dettagli = carica_da_firestore_live("cani_dettagli", {})
 
 if "volontari_db" not in st.session_state:
     try:
@@ -738,60 +743,91 @@ elif menu == "👀 Panoramica":
             st.markdown("---")
 
 elif menu == "🐶 Cani":
-    st.header("Gestione Anagrafica Cani")
+    st.header("🐾 Anagrafica e Mini-Schede Cani")
 
-    if not st.session_state.is_admin:
-        st.warning(
-            "🔒 Questa sezione è protetta. Apri l'area 'Admin' nella barra"
-            " laterale a sinistra per inserire la password."
-        )
-        st.subheader("Lista attuale dei cani in canile:")
-        for dog in st.session_state.cani:
-            st.write(f"🐾 **{dog}**")
-    else:
-        st.markdown("Aggiungi o rimuovi i cani presenti in canile (Modalità Admin attiva).")
-
-        new_dog = st.text_input("Nome del nuovo cane:")
-        if st.button("Aggiungi Cane"):
-            if new_dog.strip() and new_dog not in st.session_state.cani:
-                st.session_state.cani.append(new_dog.strip())
-                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
-                st.cache_data.clear()
-                st.success(f"Cane '{new_dog}' aggiunto con successo!")
-                st.rerun()
-            elif new_dog in st.session_state.cani:
-                st.warning("Questo cane è già presente nella lista.")
-
-        st.subheader("Lista attuale dei cani in canile:")
-        for dog in st.session_state.cani:
-            col_d1, col_d2 = st.columns([3, 2])
-            with col_d1:
-                st.write(f"🐾 **{dog}**")
-            with col_d2:
-                with st.popover(f"🏡 Segna Adottato ({dog})"):
-                    st.write(f"Archiviazione di **{dog}** per adozione.")
-                    with st.form(key=f"form_adozione_{dog}"):
-                        data_entrata = st.date_input("Data di entrata in canile:", key=f"entrata_{dog}")
-                        data_uscita = st.date_input("Data di adozione (uscita):", key=f"uscita_{dog}")
-                        note_adozione = st.text_area("Note / Famiglia adottiva (opzionale):", key=f"note_adoz_{dog}")
+    if st.session_state.is_admin:
+        with st.expander("➕ Aggiungi Nuovo Cane con Scheda Dettagliata", expanded=False):
+            with st.form("form_aggiungi_cane_completo"):
+                n_cane = st.text_input("Nome del cane:")
+                col_i1, col_i2 = st.columns(2)
+                with col_i1:
+                    eta_cane = st.text_input("Età (es. 3 anni / cucciolo):")
+                    sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
+                with col_i2:
+                    data_nascita_cane = st.date_input("Data di nascita (stimata o certa):", value=datetime.now().date())
+                    taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media", "Grande"])
+                
+                data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
+                
+                btn_salva_nuovo_cane = st.form_submit_button("Salva Cane e Scheda 📝")
+                if btn_salva_nuovo_cane:
+                    if n_cane.strip() and n_cane.strip() not in st.session_state.cani:
+                        nome_pulito = n_cane.strip()
+                        st.session_state.cani.append(nome_pulito)
+                        db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                         
-                        btn_conferma_adozione = st.form_submit_button("Conferma Adozione e Archivia 🏡")
-                        if btn_conferma_adozione:
-                            if dog in st.session_state.cani:
-                                st.session_state.cani.remove(dog)
-                                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
-                            
-                            dati_archivio = {
-                                "nome": dog,
-                                "data_entrata": data_entrata.strftime("%d/%m/%Y"),
-                                "data_uscita": data_uscita.strftime("%d/%m/%Y"),
-                                "note": note_adozione
-                            }
-                            st.session_state.cani_archivio[dog] = dati_archivio
-                            salva_su_firestore("cani_archivio", dog, dati_archivio)
-                            
-                            st.success(f"Cane '{dog}' spostato nell'archivio adozioni con successo!")
-                            st.rerun()
+                        dettagli_nuovi = {
+                            "eta": eta_cane,
+                            "sesso": sesso_cane,
+                            "data_nascita": data_nascita_cane.strftime("%d/%m/%Y"),
+                            "taglia": taglia_cane,
+                            "data_entrata": data_entrata_cane.strftime("%d/%m/%Y")
+                        }
+                        st.session_state.cani_dettagli[nome_pulito] = dettagli_nuovi
+                        salva_su_firestore("cani_dettagli", nome_pulito, dettagli_nuovi)
+                        
+                        st.cache_data.clear()
+                        st.success(f"Cane '{nome_pulito}' aggiunto con successo!")
+                        st.rerun()
+                    elif n_cane.strip() in st.session_state.cani:
+                        st.warning("Questo cane è già presente nella lista.")
+
+    st.markdown("### Elenco Ospiti in Canile")
+    if not st.session_state.cani:
+        st.info("Nessun cane registrato nel sistema.")
+    else:
+        for dog in sorted(st.session_state.cani):
+            info_d = st.session_state.cani_dettagli.get(dog, {})
+            eta_str = info_d.get("eta", "N/D")
+            sesso_str = info_d.get("sesso", "N/D")
+            nascita_str = info_d.get("data_nascita", "N/D")
+            taglia_str = info_d.get("taglia", "N/D")
+            entrata_str = info_d.get("data_entrata", "N/D")
+
+            with st.container(border=True):
+                col_s1, col_s2 = st.columns([3, 1])
+                with col_s1:
+                    st.markdown(f"### 🐾 {dog}")
+                    st.markdown(f"• **Sesso:** {sesso_str} | **Taglia:** {taglia_str}")
+                    st.markdown(f"• **Età:** {eta_str} (Nascita: {nascita_str})")
+                    st.markdown(f"• **In canile dal:** `{entrata_str}`")
+                
+                with col_s2:
+                    if st.session_state.is_admin:
+                        with st.popover(f"🏡 Segna Adottato"):
+                            st.write(f"Adozione di **{dog}**.")
+                            with st.form(key=f"form_adozione_{dog}"):
+                                st.write(f"Data entrata registrata: **{entrata_str}**")
+                                data_uscita = st.date_input("Data adozione (uscita):", value=datetime.now().date(), key=f"uscita_{dog}")
+                                note_adozione = st.text_area("Note / Famiglia (opzionale):", key=f"note_adoz_{dog}")
+                                
+                                btn_conferma_adozione = st.form_submit_button("Conferma e Archivia 🏡")
+                                if btn_conferma_adozione:
+                                    if dog in st.session_state.cani:
+                                        st.session_state.cani.remove(dog)
+                                        db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                                    
+                                    dati_archivio = {
+                                        "nome": dog,
+                                        "data_entrata": entrata_str,
+                                        "data_uscita": data_uscita.strftime("%d/%m/%Y"),
+                                        "note": note_adozione
+                                    }
+                                    st.session_state.cani_archivio[dog] = dati_archivio
+                                    salva_su_firestore("cani_archivio", dog, dati_archivio)
+                                    
+                                    st.success(f"Cane '{dog}' archiviato con successo!")
+                                    st.rerun()
 
 elif menu == "👥 Volontari":
     st.header("Gestione Anagrafica Volontari")
