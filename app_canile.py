@@ -329,21 +329,25 @@ with st.container():
         with st.expander("🔔 Avis Canile del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
-# --- MENU PRINCIPALE IN ALTO ---
-opzioni_base = [
-    "📅 Inserisci",
-    "👀 Panoramica",
-    "🐶 Cani",
-    "📊 Statistiche",
-    "📚 Archivio",
-]
+# --- MENU PRINCIPALE OTTIMIZZATO ---
+opzioni_principali = ["📅 Inserisci", "👀 Panoramica", "📁 Altro"]
+menu_principale = st.pills("Seleziona sezione:", opzioni_principali, default="📅 Inserisci")
 
-if st.session_state.is_admin:
-    opzioni_menu = opzioni_base + ["👥 Volontari", "🛠️ Gestione LPU (Admin)", "🏡 Archivio Cani (Admin)"]
+# Gestione della sezione "Altro" con un sottomenu pulito
+if menu_principale == "📁 Altro":
+    sub_opzioni = [
+        "🐶 Cani",
+        "📊 Statistiche",
+        "📚 Archivio Settimane",
+        "🏡 Archivio Cani Adottati",
+    ]
+    if st.session_state.is_admin:
+        sub_opzioni += ["👥 Volontari", "🛠️ Gestione LPU (Admin)"]
+    
+    menu = st.selectbox("Seleziona una voce dall'archivio / gestione:", sub_opzioni, key="sottomenu_altro")
 else:
-    opzioni_menu = opzioni_base
+    menu = menu_principale
 
-menu = st.pills("Seleziona sezione:", opzioni_menu, default=opzioni_menu[0])
 st.markdown("---")
 
 if is_weekend_o_venerdi_sera:
@@ -764,12 +768,10 @@ elif menu == "🐶 Cani":
                         
                         btn_conferma_adozione = st.form_submit_button("Conferma Adozione e Archivia 🏡")
                         if btn_conferma_adozione:
-                            # Rimuovi dalla lista attiva
                             if dog in st.session_state.cani:
                                 st.session_state.cani.remove(dog)
                                 db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                             
-                            # Salva in archivio
                             dati_archivio = {
                                 "nome": dog,
                                 "data_entrata": data_entrata.strftime("%d/%m/%Y"),
@@ -816,32 +818,30 @@ elif menu == "👥 Volontari":
                         st.success(f"Volontario '{vol}' eliminato.")
                         st.rerun()
 
-elif menu == "🏡 Archivio Cani (Admin)":
+elif menu == "🏡 Archivio Cani Adottati":
     st.header("🏡 Archivio Cani Adottati")
-
-    if not st.session_state.is_admin:
-        st.error("Area riservata esclusivamente agli amministratori.")
+    st.markdown("Elenco pubblico dei cani adottati e storicizzati con relative date di entrata e uscita.")
+    
+    archivio_corrente = carica_da_firestore_live("cani_archivio", {})
+    
+    if not archivio_corrente:
+        st.info("Nessun cane presente nell'archivio adozioni.")
     else:
-        st.markdown("Elenco dei cani adottati e storicizzati con relative date di entrata e uscita.")
+        dati_tabella_cani = []
+        for nome_c, info_c in archivio_corrente.items():
+            dati_tabella_cani.append({
+                "Nome": info_c.get("nome", nome_c),
+                "Data Entrata": info_c.get("data_entrata", "N/D"),
+                "Data Uscita (Adozione)": info_c.get("data_uscita", "N/D"),
+                "Note": info_c.get("note", "")
+            })
         
-        archivio_corrente = carica_da_firestore_live("cani_archivio", {})
+        df_cani_arch = pd.DataFrame(dati_tabella_cani)
+        st.dataframe(df_cani_arch, use_container_width=True)
         
-        if not archivio_corrente:
-            st.info("Nessun cane presente nell'archivio adozioni.")
-        else:
-            dati_tabella_cani = []
-            for nome_c, info_c in archivio_corrente.items():
-                dati_tabella_cani.append({
-                    "Nome": info_c.get("nome", nome_c),
-                    "Data Entrata": info_c.get("data_entrata", "N/D"),
-                    "Data Uscita (Adozione)": info_c.get("data_uscita", "N/D"),
-                    "Note": info_c.get("note", "")
-                })
-            
-            df_cani_arch = pd.DataFrame(dati_tabella_cani)
-            st.dataframe(df_cani_arch, use_container_width=True)
-            
-            st.markdown("### 🗑️ Gestione Archivio Cani")
+        if st.session_state.is_admin:
+            st.markdown("---")
+            st.markdown("### 🗑️ Gestione Archivio Cani (Riservato Admin)")
             for nome_c in list(archivio_corrente.keys()):
                 col_ac1, col_ac2 = st.columns([3, 1])
                 with col_ac1:
@@ -936,7 +936,7 @@ elif menu == "📊 Statistiche":
             ).sort_values(by="Uscite", ascending=False).reset_index(drop=True)
             st.dataframe(df_tabella, use_container_width=True)
 
-elif menu == "📚 Archivio":
+elif menu == "📚 Archivio Settimane":
     st.header("📚 Archivio Storico delle Settimane Passate")
     
     tutti_i_turni = carica_turni_normalizzati()
