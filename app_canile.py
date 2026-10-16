@@ -647,7 +647,7 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Ordinamento rigoroso: volontari dei cani in alto (per orario), LPU in fondo
+                        # Ordinamento rigoroso: volontari dos cani in alto (per orario), LPU in fondo
                         def ottieni_ordinamento_turno(turno):
                             id_t = str(turno.get("id", ""))
                             vol_t = str(turno.get("volontario", ""))
@@ -903,6 +903,19 @@ elif menu == "🐶 Cani":
                             st.session_state[f"edit_dog_{dog}"] = not st.session_state.get(f"edit_dog_{dog}", False)
                             st.rerun()
 
+                        # --- PULSANTE ELIMINA CANE (ADMIN) ---
+                        with st.popover(f"🗑️ Elimina Cane"):
+                            st.write(f"Vuoi eliminare definitivamente **{dog}** dal sistema?")
+                            if st.button("Conferma Eliminazione 🛑", key=f"conf_del_cane_{dog}"):
+                                if dog in st.session_state.cani:
+                                    st.session_state.cani.remove(dog)
+                                    db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                                if dog in st.session_state.cani_dettagli:
+                                    del st.session_state.cani_dettagli[dog]
+                                elimina_da_firestore("cani_dettagli", dog)
+                                st.success(f"Cane '{dog}' eliminato definitivamente!")
+                                st.rerun()
+
             if st.session_state.is_admin and st.session_state.get(f"edit_dog_{dog}", False):
                 with st.form(key=f"form_mod_scheda_{dog}"):
                     st.subheader(f"Modifica Scheda di {dog}")
@@ -1017,11 +1030,39 @@ elif menu == "🏡 Archivio Cani Adottati":
                     st.info(f"📝 **Note adozione / Famiglia:** {s_note}")
 
                 if st.session_state.is_admin:
-                    if st.button("Elimina Record Definitivamente 🛑", key=f"btn_del_arch_{nome_c}"):
-                        del archivio_corrente[nome_c]
-                        elimina_da_firestore("cani_archivio", nome_c)
-                        st.success(f"Record di {nome_c} eliminato dall'archivio.")
-                        st.rerun()
+                    col_act1, col_act2 = st.columns(2)
+                    with col_act1:
+                        if st.button("🔄 Riporta in Canile", key=f"btn_ripristina_{nome_c}"):
+                            # Rimuove dall'archivio e rimettere nei cani attivi
+                            if nome_c not in st.session_state.cani:
+                                st.session_state.cani.append(nome_c)
+                                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
+                            
+                            # Ripristina i dettagli esistenti
+                            dettagli_ripristinati = {
+                                "sesso": s_sesso,
+                                "data_nascita": s_nas,
+                                "taglia": s_taglia,
+                                "data_entrata": s_ent
+                            }
+                            st.session_state.cani_dettagli[nome_c] = dettagli_ripristinati
+                            salva_su_firestore("cani_dettagli", nome_c, dettagli_ripristinati)
+
+                            # Elimina dall'archivio
+                            del archivio_corrente[nome_c]
+                            elimina_da_firestore("cani_archivio", nome_c)
+                            
+                            st.success(f"Cane '{nome_c}' ripristinato tra gli ospiti attivi del canile!")
+                            st.rerun()
+
+                    with col_act2:
+                        with st.popover(f"🗑️ Elimina Definitivamente"):
+                            st.write(f"Eliminare per sempre il record di **{nome_c}**?")
+                            if st.button("Conferma Eliminazione 🛑", key=f"btn_del_arch_{nome_c}"):
+                                del archivio_corrente[nome_c]
+                                elimina_da_firestore("cani_archivio", nome_c)
+                                st.success(f"Record di {nome_c} eliminato dall'archivio.")
+                                st.rerun()
 
 elif menu == "📊 Statistiche":
     st.header("📊 Statistiche Uscite Cani")
