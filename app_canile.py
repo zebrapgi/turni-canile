@@ -360,7 +360,7 @@ with st.container():
     cani_scoperti_oggi = [c for c in st.session_state.cani if c not in cani_coperti_oggi]
 
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
-        with st.expander("🔔 Avis Canile del Giorno", expanded=True):
+        with st.expander("🔔 Avviso del Giorno", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE (DINAMICO PER ADMIN / VOLONTARI) ---
