@@ -796,7 +796,17 @@ elif menu == "🐶 Cani":
                 col_i1, col_i2 = st.columns(2)
                 with col_i1:
                     sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
-                    data_nascita_cane = st.date_input("Data di nascita:", value=datetime.now().date())
+                    
+                    st.markdown("**Data di nascita:**")
+                    c_g, c_m, c_a = st.columns(3)
+                    with c_g:
+                        giorno_n = st.selectbox("Giorno", list(range(1, 32)), index=0, key="novo_g")
+                    with c_m:
+                        mese_n = st.selectbox("Mese", list(range(1, 13)), index=0, key="novo_m")
+                    with c_a:
+                        anni_disponibili = list(range(datetime.now().year, 2004, -1))
+                        anno_n = st.selectbox("Anno", anni_disponibili, index=anni_disponibili.index(2012) if 2012 in anni_disponibili else 0, key="novo_a")
+                    
                 with col_i2:
                     taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"])
                     data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
@@ -808,9 +818,14 @@ elif menu == "🐶 Cani":
                         st.session_state.cani.append(nome_pulito)
                         db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                         
+                        try:
+                            data_nascita_str = f"{giorno_n:02d}/{mese_n:02d}/{anno_n}"
+                        except:
+                            data_nascita_str = "01/01/2012"
+
                         dettagli_nuovi = {
                             "sesso": sesso_cane,
-                            "data_nascita": data_nascita_cane.strftime("%d/%m/%Y"),
+                            "data_nascita": data_nascita_str,
                             "taglia": taglia_cane,
                             "data_entrata": data_entrata_cane.strftime("%d/%m/%Y")
                         }
@@ -894,10 +909,23 @@ elif menu == "🐶 Cani":
                     m_sesso = st.selectbox("Sesso:", ["Maschio", "Femmina"], index=0 if sesso_str=="Maschio" else 1, key=f"m_sesso_{dog}")
                     
                     try:
-                        val_nas = datetime.strptime(nascita_str, "%d/%m/%Y").date()
+                        parti_data = nascita_str.split("/")
+                        def_g = int(parti_data[0])
+                        def_m = int(parti_data[1])
+                        def_a = int(parti_data[2])
                     except:
-                        val_nas = datetime.now().date()
-                    m_nascita = st.date_input("Data di nascita:", value=val_nas, key=f"m_nascita_{dog}")
+                        def_g, def_m, def_a = 1, 1, 2012
+
+                    st.markdown("**Data di nascita:**")
+                    m_cg, m_cm, m_ca = st.columns(3)
+                    with m_cg:
+                        mod_g = st.selectbox("Giorno", list(range(1, 32)), index=def_g-1 if 1 <= def_g <= 31 else 0, key=f"mg_{dog}")
+                    with m_cm:
+                        mod_m = st.selectbox("Mese", list(range(1, 13)), index=def_m-1 if 1 <= def_m <= 12 else 0, key=f"mm_{dog}")
+                    with m_ca:
+                        mod_anni_disp = list(range(datetime.now().year, 2004, -1))
+                        idx_anno = mod_anni_disp.index(def_a) if def_a in mod_anni_disp else 0
+                        mod_a = st.selectbox("Anno", mod_anni_disp, index=idx_anno, key=f"ma_{dog}")
                     
                     opzioni_taglie = ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"]
                     idx_taglia = opzioni_taglie.index(taglia_str) if taglia_str in opzioni_taglie else 2
@@ -911,9 +939,10 @@ elif menu == "🐶 Cani":
                     
                     btn_salva_mod_scheda = st.form_submit_button("Salva Modifiche Scheda ✅")
                     if btn_salva_mod_scheda:
+                        nuova_data_nascita_str = f"{mod_g:02d}/{mod_m:02d}/{mod_a}"
                         dettagli_aggiornati = {
                             "sesso": m_sesso,
-                            "data_nascita": m_nascita.strftime("%d/%m/%Y"),
+                            "data_nascita": nuova_data_nascita_str,
                             "taglia": m_taglia,
                             "data_entrata": m_entrata.strftime("%d/%m/%Y")
                         }
