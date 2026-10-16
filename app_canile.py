@@ -155,7 +155,7 @@ is_weekend_reale = (giorno_settimana > 4) or (
 )
 is_weekend_o_venerdi_sera = is_weekend_reale
 
-# --- FUNZIONE CALCOLO ETA AUTOMATICO ---
+# --- FUNZIONE CALCOLO ETA AUTOMATICO (CON MESI) ---
 def calcola_eta(data_nascita_str):
     if not data_nascita_str or data_nascita_str == "N/D":
         return "N/D"
@@ -177,10 +177,10 @@ def calcola_eta(data_nascita_str):
             return "Cucciolo (meno di un mese)"
         elif anni == 0:
             return f"{mesi} {'mese' if mesi == 1 else 'mesi'}"
-        elif anni < 2 and mesi > 0:
-            return f"{anni} {'anno' if anni == 1 else 'anni'} e {mesi} {'mese' if mesi == 1 else 'mesi'}"
-        else:
+        elif mesi == 0:
             return f"{anni} {'anno' if anni == 1 else 'anni'}"
+        else:
+            return f"{anni} {'anno' if anni == 1 else 'anni'} e {mesi} {'mese' if mesi == 1 else 'mesi'}"
     except Exception:
         return "N/D"
 
