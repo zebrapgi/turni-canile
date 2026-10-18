@@ -6,6 +6,7 @@ import pytz
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
+import streamlit.components.v1 as components
 
 st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
@@ -271,6 +272,44 @@ with st.sidebar:
         st.cache_data.clear()
         st.success("Dati aggiornati!")
         st.rerun()
+
+    # --- SEZIONE NOTIFICHE PUSH DEDICATA ALL'EDUCATRICE ---
+    st.markdown("---")
+    st.subheader("⚙️ Impostazioni Notifiche")
+    
+    pwa_consenso_code = """
+    <div style="padding: 10px; background-color: #f0f2f6; border-radius: 8px; text-align: center;">
+        <p style="font-size: 13px; color: #31333F; margin-bottom: 8px;"><b>Area Educatrice</b></p>
+        <button onclick="richiediPermessoNotifiche()" style="background-color: #4CAF50; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px;">
+            🔔 Attiva Notifiche Push
+        </button>
+    </div>
+
+    <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').catch(function(err) {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      });
+    }
+
+    function richiediPermessoNotifiche() {
+        if (!('Notification' in window)) {
+            alert('Questo browser non supporta le notifiche push.');
+            return;
+        }
+        Notification.requestPermission().then(function(permission) {
+            if (permission === 'granted') {
+                alert('Notifiche attivate con successo sul dispositivo!');
+            } else {
+                alert('Permesso per le notifiche negato.');
+            }
+        });
+    }
+    </script>
+    """
+    components.html(pwa_consenso_code, height=110)
 
     with st.expander("🔍 Cerca i miei turni", expanded=False):
         turni_esistenti_side = carica_turni_normalizzati()
@@ -1570,7 +1609,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ]["ore_fatte"] = max(
+                                ][“ore_fatte”] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
