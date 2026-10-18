@@ -498,7 +498,7 @@ if menu == "📅 Inserisci":
             orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
     with col2:
-        note = st.text_area("Note aggiuntive (opzionale):", key="note_dinamiche")
+        st.info("💡 **Nota per i volontari:** L'inserimento delle note per i turni è riservato agli amministratori.")
 
     cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
 
@@ -578,7 +578,7 @@ if menu == "📅 Inserisci":
                         "fascia": fascia,
                         "orario": orario,
                         "cani_fatti": cani_fatti,
-                        "note": note,
+                        "note": "",  # I volontari non inseriscono note alla registrazione
                     }
                     try:
                         db.collection("turni").document(id_turno).set(nuovo_turno)
@@ -647,7 +647,6 @@ elif menu == "👀 Panoramica":
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
 
-                        # Ordinamento rigoroso: volontari dos cani in alto (per orario), LPU in fondo
                         def ottieni_ordinamento_turno(turno):
                             id_t = str(turno.get("id", ""))
                             vol_t = str(turno.get("volontario", ""))
@@ -681,10 +680,10 @@ elif menu == "👀 Panoramica":
                                     f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
                                 )
                                 if t["note"]:
-                                    st.caption(f"Note: {t['note']}")
+                                    st.caption(f"📝 Nota Admin: {t['note']}")
 
                                 if st.session_state.is_admin:
-                                    col_mod, col_del = st.columns(2)
+                                    col_mod, col_nota, col_del = st.columns(3)
                                     with col_mod:
                                         if not t['id'].startswith("lpu_"):
                                             if st.button(
@@ -694,12 +693,25 @@ elif menu == "👀 Panoramica":
                                                 st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
                                                 st.rerun()
                                         else:
-                                            st.caption("*(Modifica LPU nella tab dedicata)*")
+                                            st.caption("*(LPU)*")
+                                            
+                                    with col_nota:
+                                        with st.popover("📝 Nota"):
+                                            st.write(f"Gestisci nota per **{t['volontario']}**")
+                                            with st.form(key=f"form_nota_{t['id']}"):
+                                                testo_nota_corr = t.get("note", "")
+                                                nuova_nota_admin = st.text_area("Nota / Appunto:", value=testo_nota_corr, key=f"input_nota_{t['id']}")
+                                                btn_salva_nota = st.form_submit_button("Salva Nota 💾")
+                                                if btn_salva_nota:
+                                                    t["note"] = nuova_nota_admin
+                                                    salva_su_firestore("turni", t["id"], t)
+                                                    st.success("Nota aggiornata!")
+                                                    st.rerun()
                                     
                                     with col_del:
-                                        with st.popover(f"🗑️ Elimina ({t['volontario']})"):
-                                            st.write("Sei sicuro di voler eliminare questo turno?")
-                                            if st.button("Conferma Eliminazione 🛑", key=f"conf_del_{t['id']}"):
+                                        with st.popover(f"🗑️ Elimina"):
+                                            st.write("Eliminare questo turno?")
+                                            if st.button("Conferma 🛑", key=f"conf_del_{t['id']}"):
                                                 if t['id'].startswith("lpu_"):
                                                     original_lpu_id = t['id'].replace("lpu_", "")
                                                     tutti_lpu = carica_da_firestore_live("turni_lpu", [])
@@ -903,7 +915,6 @@ elif menu == "🐶 Cani":
                             st.session_state[f"edit_dog_{dog}"] = not st.session_state.get(f"edit_dog_{dog}", False)
                             st.rerun()
 
-                        # --- PULSANTE ELIMINA CANE (ADMIN) ---
                         with st.popover(f"🗑️ Elimina Cane"):
                             st.write(f"Vuoi eliminare definitivamente **{dog}** dal sistema?")
                             if st.button("Conferma Eliminazione 🛑", key=f"conf_del_cane_{dog}"):
@@ -1033,12 +1044,10 @@ elif menu == "🏡 Archivio Cani Adottati":
                     col_act1, col_act2 = st.columns(2)
                     with col_act1:
                         if st.button("🔄 Riporta in Canile", key=f"btn_ripristina_{nome_c}"):
-                            # Rimuove dall'archivio e rimettere nei cani attivi
                             if nome_c not in st.session_state.cani:
                                 st.session_state.cani.append(nome_c)
                                 db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                             
-                            # Ripristina i dettagli esistenti
                             dettagli_ripristinati = {
                                 "sesso": s_sesso,
                                 "data_nascita": s_nas,
@@ -1048,7 +1057,6 @@ elif menu == "🏡 Archivio Cani Adottati":
                             st.session_state.cani_dettagli[nome_c] = dettagli_ripristinati
                             salva_su_firestore("cani_dettagli", nome_c, dettagli_ripristinati)
 
-                            # Elimina dall'archivio
                             del archivio_corrente[nome_c]
                             elimina_da_firestore("cani_archivio", nome_c)
                             
