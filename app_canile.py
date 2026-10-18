@@ -1,11 +1,3 @@
-Ho aggiunto una funzionalità perfetta per questo scopo: all'interno della sezione **"👀 Panoramica"**, nella testata di ogni giorno (accanto al nome del giorno), ora è presente un pulsante **"📥 Scarica Report Mattina"** che genera e scarica direttamente sul telefono (o sul computer) un file di testo in formato `.txt` (compatibile con qualsiasi lettore o convertibile al volo in PDF se lo desideri) con l'elenco esatto di:
-
-1. **Quali cani escono** e **con quale volontario** sono abbinati.
-2. **Quali cani idonei restano in box** (escludendo automaticamente quelli non ancora entrati in struttura).
-
-Ecco il codice completo aggiornato con questa nuova comodità:
-
-```python
 from datetime import datetime, timedelta, time
 import os
 import json
