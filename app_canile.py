@@ -216,7 +216,11 @@ def get_info_settimane():
         "chiave_corr": chiave_corr,
         "chiave_pros": chiave_pros,
         "label_corr": label_corr,
-        "label_pros": label_pros
+        "label_pros": label_pros,
+        "lunedi_corrente": lunedi_corrente,
+        "domenica_corrente": domenica_corrente,
+        "lunedi_prossimo": lunedi_prossimo,
+        "domenica_prossima": domenica_prossima
     }
 
 info_sett = get_info_settimane()
@@ -361,7 +365,17 @@ with st.container():
         for c in t.get("cani_fatti", []):
             cani_coperti_oggi.add(c)
             
-    cani_scoperti_oggi = [c for c in st.session_state.cani if c not in cani_coperti_oggi]
+    cani_scoperti_oggi = []
+    data_oggi_date = adesso.date()
+    for c in st.session_state.cani:
+        if c not in cani_coperti_oggi:
+            d_entrata_str = st.session_state.cani_dettagli.get(c, {}).get("data_entrata", "01/01/2000")
+            try:
+                d_ent_date = datetime.strptime(d_entrata_str, "%d/%m/%Y").date()
+            except:
+                d_ent_date = datetime(2000, 1, 1).date()
+            if d_ent_date <= data_oggi_date:
+                cani_scoperti_oggi.append(c)
 
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
         with st.expander("🔔 Avviso del Giorno", expanded=True):
@@ -531,6 +545,14 @@ if menu == "📅 Inserisci":
             key="multiselect_cani_vuoto"
         )
 
+    # --- CAMPO NOTA PERSONALE AL MOMENTO DELL'INSERIMENTO ---
+    st.markdown("### 💬 3. Nota o Avviso Personale (Opzionale)")
+    nota_personale_input = st.text_area(
+        "Se vuoi avvisare di qualcosa per questo turno (es. arrivo in ritardo, esigenze particolari):",
+        placeholder="Scrivi qui eventuali note...",
+        key="input_nota_personale_form"
+    )
+
     submit_button = st.button(label="Registra Turno 🚀", key="btn_submit_turno")
 
     if submit_button:
@@ -579,7 +601,7 @@ if menu == "📅 Inserisci":
                         "fascia": fascia,
                         "orario": orario,
                         "cani_fatti": cani_fatti,
-                        "note": "",
+                        "note": nota_personale_input.strip(),
                     }
                     try:
                         db.collection("turni").document(id_turno).set(nuovo_turno)
@@ -608,6 +630,12 @@ elif menu == "👀 Panoramica":
     )
     settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
+    try:
+        anno_s, sett_s = settimana_vista_chiave.split("-W")
+        lunedi_settimana_vista = datetime.fromisocalendar(int(anno_s), int(sett_s), 1).date()
+    except:
+        lunedi_settimana_vista = info_sett["lunedi_corrente"].date()
+
     turni_filtrati = [
         t for t in turni_attuali if t.get("settimana_chiave", t.get("settimana")) == settimana_vista_chiave
     ]
@@ -632,17 +660,17 @@ elif menu == "👀 Panoramica":
         giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
         giorno_oggi_str = giorni_map_ita[adesso.weekday()]
 
-        for giorno in giorni_settimana:
+        for idx_g, giorno in enumerate(giorni_settimana):
             turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
             if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
                 continue
                 
-            # --- INTESTAZIONE GIORNO CON REPORT COMPATTO ACCANTO ---
+            data_giorno_corrente = lunedi_settimana_vista + timedelta(days=idx_g)
+
             col_tit_giorno, col_btn_report = st.columns([3, 2])
             with col_tit_giorno:
-                st.markdown(f"## 📌 {giorno}")
+                st.markdown(f"## 📌 {giorno} ({data_giorno_corrente.strftime('%d/%m/%Y')})")
             
-            # Mostra il pulsante compatto del report se è il giorno corrente e (mattina o admin)
             is_mattina_corrente = ((ora_attuale < 13) or st.session_state.is_admin) and (settimana_vista_chiave == chiave_corr)
             if giorno == giorno_oggi_str and is_mattina_corrente:
                 with col_btn_report:
@@ -661,7 +689,17 @@ elif menu == "👀 Panoramica":
                                 cani_con_uscita[c].append(vol)
                     
                     cani_che_escono = list(cani_con_uscita.keys())
-                    cani_che_non_escono = [c for c in st.session_state.cani if c not in cani_con_uscita]
+                    
+                    cani_che_non_escono = []
+                    for c in st.session_state.cani:
+                        if c not in cani_con_uscita:
+                            d_entrata_str = st.session_state.cani_dettagli.get(c, {}).get("data_entrata", "01/01/2000")
+                            try:
+                                d_ent_date = datetime.strptime(d_entrata_str, "%d/%m/%Y").date()
+                            except:
+                                d_ent_date = datetime(2000, 1, 1).date()
+                            if d_ent_date <= data_giorno_corrente:
+                                cani_che_non_escono.append(c)
                     
                     report_lines = []
                     report_lines.append(f"REPORT GIORNALIERO CANILE - {giorno_oggi_str} ({adesso.strftime('%d/%m/%Y')})")
@@ -677,7 +715,7 @@ elif menu == "👀 Panoramica":
                     
                     report_lines.append("\n2. CANI CHE NON ESCONO:")
                     if not cani_che_non_escono:
-                        report_lines.append("   Tutti i cani escono oggi!")
+                        report_lines.append("   Tutti i cani idonei escono oggi!")
                     else:
                         for c in sorted(cani_che_non_escono):
                             report_lines.append(f"   - {c}")
@@ -689,7 +727,7 @@ elif menu == "👀 Panoramica":
                         data=report_testo,
                         file_name=f"report_canile_{giorno_oggi_str.lower()}_{adesso.strftime('%Y%m%d')}.txt",
                         mime="text/plain",
-                        key=f"btn_download_report_{giorno}"
+                        key=f"btn_download_report_{giorno}_{settimana_vista_chiave}"
                     )
 
             col_m, col_p = st.columns(2)
@@ -741,10 +779,20 @@ elif menu == "👀 Panoramica":
 
                         turni_fascia_ordinati = sorted(turni_fascia, key=ottieni_ordinamento_turno)
 
+                        cani_validi_oggi = []
+                        for c in st.session_state.cani:
+                            d_entrata_str = st.session_state.cani_dettagli.get(c, {}).get("data_entrata", "01/01/2000")
+                            try:
+                                d_ent_date = datetime.strptime(d_entrata_str, "%d/%m/%Y").date()
+                            except:
+                                d_ent_date = datetime(2000, 1, 1).date()
+                            if d_ent_date <= data_giorno_corrente:
+                                cani_validi_oggi.append(c)
+
                         if not turni_fascia_ordinati:
                             st.caption("Nessun volontario registrato.")
                             st.markdown("**Cani scoperti:**")
-                            for c in sorted(st.session_state.cani):
+                            for c in sorted(cani_validi_oggi):
                                 st.error(f"❌ {c}")
                         else:
                             st.markdown("**Volontari presenti:**")
@@ -759,20 +807,10 @@ elif menu == "👀 Panoramica":
                                     f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
                                 )
 
-                                # --- NOTA SINGOLA DEL VOLONTARIO ---
+                                # --- VISUALIZZAZIONE NOTA PERSONALE INSERITA NEL TURNO ---
                                 nota_singolo = t.get("note", "")
                                 if nota_singolo:
                                     st.markdown(f"> 💬 *Nota:* {nota_singolo}")
-
-                                with st.popover(f"📝 Nota ({t['volontario']})", key=f"pop_nota_{t['id']}"):
-                                    with st.form(key=f"form_nota_{t['id']}"):
-                                        nuova_nota_vol = st.text_area("Messaggio / Avviso per questo turno:", value=nota_singolo, key=f"inp_nota_{t['id']}")
-                                        btn_salva_nota_vol = st.form_submit_button("Salva Nota 💾")
-                                        if btn_salva_nota_vol:
-                                            t["note"] = nuova_nota_vol
-                                            salva_su_firestore("turni", t["id"], t)
-                                            st.success("Nota salvata con successo!")
-                                            st.rerun()
 
                                 if st.session_state.is_admin:
                                     col_mod, col_del = st.columns(2)
@@ -831,6 +869,9 @@ elif menu == "👀 Panoramica":
                                                 default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
                                                 key=f"cani_mod_{t['id']}"
                                             )
+                                            
+                                            nuova_nota_mod = st.text_area("Nota personale:", value=t.get("note", ""), key=f"nota_mod_{t['id']}")
+
                                             btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
                                             if btn_salva_mod:
                                                 if not nuovi_cani:
@@ -845,7 +886,7 @@ elif menu == "👀 Panoramica":
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
                                                         "cani_fatti": nuovi_cani,
-                                                        "note": t.get("note", "")
+                                                        "note": nuova_nota_mod.strip()
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
                                                     st.session_state[f"editing_{t['id']}"] = False
@@ -860,7 +901,7 @@ elif menu == "👀 Panoramica":
                                     cani_coperti.add(c)
 
                             cani_scoperti = [
-                                c for c in st.session_state.cani if c not in cani_coperti
+                                c for c in cani_validi_oggi if c not in cani_coperti
                             ]
 
                             if cani_scoperti:
