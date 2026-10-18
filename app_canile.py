@@ -608,66 +608,6 @@ elif menu == "👀 Panoramica":
     )
     settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
-    # --- SEZIONE REPORT MATTINA ---
-    giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-    giorno_oggi_str = giorni_map_ita[adesso.weekday()]
-    
-    is_mattina_corrente = ((ora_attuale < 13) or st.session_state.is_admin) and (settimana_vista_chiave == chiave_corr)
-
-    if is_mattina_corrente:
-        with st.container(border=True):
-            st.markdown(f"### 📄 Report Giornaliero del Mattino ({giorno_oggi_str})")
-            if st.session_state.is_admin and ora_attuale >= 13:
-                st.caption("💡 *[Modalità test Admin attiva: il report è visibile anche se sono passate le 13:00]*")
-            else:
-                st.caption("Scarica il report riepilogativo con i cani che escono, quelli che non escono e i volontari di oggi.")
-            
-            turni_oggi_report = [
-                t for t in turni_attuali 
-                if t.get("giorno") == giorno_oggi_str and t.get("settimana_chiave", t.get("settimana")) == chiave_corr
-            ]
-            
-            cani_con_uscita = {}
-            for t in turni_oggi_report:
-                vol = t.get("volontario")
-                for c in t.get("cani_fatti", []):
-                    if c not in cani_con_uscita:
-                        cani_con_uscita[c] = []
-                    if vol not in cani_con_uscita[c]:
-                        cani_con_uscita[c].append(vol)
-            
-            cani_che_escono = list(cani_con_uscita.keys())
-            cani_che_non_escono = [c for c in st.session_state.cani if c not in cani_con_uscita]
-            
-            report_lines = []
-            report_lines.append(f"REPORT GIORNALIERO CANILE - {giorno_oggi_str} ({adesso.strftime('%d/%m/%Y')})")
-            report_lines.append("="*50 + "\n")
-            
-            report_lines.append("1. CANI CHE ESCONO:")
-            if not cani_che_escono:
-                report_lines.append("   Nessun cane pianificato per l'uscita oggi.")
-            else:
-                for c in sorted(cani_che_escono):
-                    vols = ", ".join(cani_con_uscita[c])
-                    report_lines.append(f"   - {c} (Gestito/a da: {vols})")
-            
-            report_lines.append("\n2. CANI CHE NON ESCONO:")
-            if not cani_che_non_escono:
-                report_lines.append("   Tutti i cani escono oggi!")
-            else:
-                for c in sorted(cani_che_non_escono):
-                    report_lines.append(f"   - {c}")
-            
-            report_testo = "\n".join(report_lines)
-            
-            st.download_button(
-                label="📥 Scarica Report Giornaliero (TXT/PDF)",
-                data=report_testo,
-                file_name=f"report_canile_{giorno_oggi_str.lower()}_{adesso.strftime('%Y%m%d')}.txt",
-                mime="text/plain",
-                key="btn_download_report_mattina"
-            )
-
     turni_filtrati = [
         t for t in turni_attuali if t.get("settimana_chiave", t.get("settimana")) == settimana_vista_chiave
     ]
@@ -689,12 +629,68 @@ elif menu == "👀 Panoramica":
             "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
         ]
 
+        giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        giorno_oggi_str = giorni_map_ita[adesso.weekday()]
+
         for giorno in giorni_settimana:
             turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
             if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
                 continue
                 
-            st.markdown(f"## 📌 {giorno}")
+            # --- INTESTAZIONE GIORNO CON REPORT COMPATTO ACCANTO ---
+            col_tit_giorno, col_btn_report = st.columns([3, 2])
+            with col_tit_giorno:
+                st.markdown(f"## 📌 {giorno}")
+            
+            # Mostra il pulsante compatto del report se è il giorno corrente e (mattina o admin)
+            is_mattina_corrente = ((ora_attuale < 13) or st.session_state.is_admin) and (settimana_vista_chiave == chiave_corr)
+            if giorno == giorno_oggi_str and is_mattina_corrente:
+                with col_btn_report:
+                    turni_oggi_report = [
+                        t for t in turni_attuali 
+                        if t.get("giorno") == giorno_oggi_str and t.get("settimana_chiave", t.get("settimana")) == chiave_corr
+                    ]
+                    
+                    cani_con_uscita = {}
+                    for t in turni_oggi_report:
+                        vol = t.get("volontario")
+                        for c in t.get("cani_fatti", []):
+                            if c not in cani_con_uscita:
+                                cani_con_uscita[c] = []
+                            if vol not in cani_con_uscita[c]:
+                                cani_con_uscita[c].append(vol)
+                    
+                    cani_che_escono = list(cani_con_uscita.keys())
+                    cani_che_non_escono = [c for c in st.session_state.cani if c not in cani_con_uscita]
+                    
+                    report_lines = []
+                    report_lines.append(f"REPORT GIORNALIERO CANILE - {giorno_oggi_str} ({adesso.strftime('%d/%m/%Y')})")
+                    report_lines.append("="*50 + "\n")
+                    
+                    report_lines.append("1. CANI CHE ESCONO:")
+                    if not cani_che_escono:
+                        report_lines.append("   Nessun cane pianificato per l'uscita oggi.")
+                    else:
+                        for c in sorted(cani_che_escono):
+                            vols = ", ".join(cani_con_uscita[c])
+                            report_lines.append(f"   - {c} (Gestito/a da: {vols})")
+                    
+                    report_lines.append("\n2. CANI CHE NON ESCONO:")
+                    if not cani_che_non_escono:
+                        report_lines.append("   Tutti i cani escono oggi!")
+                    else:
+                        for c in sorted(cani_che_non_escono):
+                            report_lines.append(f"   - {c}")
+                    
+                    report_testo = "\n".join(report_lines)
+                    
+                    st.download_button(
+                        label="📥 Scarica Report Mattina",
+                        data=report_testo,
+                        file_name=f"report_canile_{giorno_oggi_str.lower()}_{adesso.strftime('%Y%m%d')}.txt",
+                        mime="text/plain",
+                        key=f"btn_download_report_{giorno}"
+                    )
 
             col_m, col_p = st.columns(2)
 
@@ -1607,7 +1603,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
