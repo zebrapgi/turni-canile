@@ -1656,5 +1656,3 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                 st.rerun()
 
                     st.markdown("---")
-
-```
