@@ -67,7 +67,7 @@ def carica_da_firestore_cached(collezione_nome):
             return []
         elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio":
             return data if data else {}
-        elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
+        elif collezione_nome == "turni" or collezione_nome == "turni_lpu" or collezione_nome == "note_turni":
             lista = [doc.to_dict() for doc in docs]
             return lista if lista else []
         return {}
@@ -140,6 +140,9 @@ if "turni_lpu" not in st.session_state:
 
 if "turni" not in st.session_state:
     st.session_state.turni = carica_da_firestore_live("turni", [])
+
+if "note_turni_db" not in st.session_state:
+    st.session_state.note_turni_db = carica_da_firestore_live("note_turni", {})
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
@@ -497,9 +500,6 @@ if menu == "📅 Inserisci":
         else:
             orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-    with col2:
-        st.info("💡 **Nota per i volontari:** L'inserimento delle note per i turni è riservato agli amministratori.")
-
     cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
 
     col_cani_op1, col_cani_op2 = st.columns([1, 1])
@@ -578,7 +578,7 @@ if menu == "📅 Inserisci":
                         "fascia": fascia,
                         "orario": orario,
                         "cani_fatti": cani_fatti,
-                        "note": "",  # I volontari non inseriscono note alla registrazione
+                        "note": "",
                     }
                     try:
                         db.collection("turni").document(id_turno).set(nuovo_turno)
@@ -622,7 +622,7 @@ elif menu == "👀 Panoramica":
         st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
     if not turni_filtrati:
-        st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
+        st.info("Nessun turno trovato con i filtri selezionati per este periodo.")
     else:
         giorni_settimana = [
             "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
@@ -643,6 +643,25 @@ elif menu == "👀 Panoramica":
                         icona_fascia = "🌅" if fascia_nome == "Mattina" else "🌇"
                         st.markdown(f"### {icona_fascia} {fascia_nome}")
                         
+                        # Sezione Nota Admin Generale per il Turno (Giorno + Fascia + Settimana)
+                        chiave_nota_turno = f"{settimana_vista_chiave}_{giorno}_{fascia_nome}"
+                        nota_corrente_turno = st.session_state.note_turni_db.get(chiave_nota_turno, {}).get("testo", "")
+                        
+                        if nota_corrente_turno:
+                            st.info(f"📝 **Nota del Turno:** {nota_corrente_turno}")
+                            
+                        if st.session_state.is_admin:
+                            with st.popover(f"✏️ Gestisci Nota Turno ({fascia_nome})"):
+                                with st.form(key=f"form_nota_gen_{chiave_nota_turno}"):
+                                    nuova_nota_gen = st.text_area("Nota / Appunto per questo turno:", value=nota_corrente_turno, key=f"inp_n_{chiave_nota_turno}")
+                                    btn_salva_ng = st.form_submit_button("Salva Nota Turno 💾")
+                                    if btn_salva_ng:
+                                        dati_nota = {"id": chiave_nota_turno, "settimana_chiave": settimana_vista_chiave, "giorno": giorno, "fascia": fascia_nome, "testo": nuova_nota_gen}
+                                        st.session_state.note_turni_db[chiave_nota_turno] = dati_nota
+                                        salva_su_firestore("note_turni", chiave_nota_turno, dati_nota)
+                                        st.success("Nota aggiornata!")
+                                        st.rerun()
+
                         turni_fascia = [
                             t for t in turni_giorno if t["fascia"] == fascia_nome
                         ]
@@ -679,11 +698,9 @@ elif menu == "👀 Panoramica":
                                 st.write(
                                     f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
                                 )
-                                if t["note"]:
-                                    st.caption(f"📝 Nota Admin: {t['note']}")
 
                                 if st.session_state.is_admin:
-                                    col_mod, col_nota, col_del = st.columns(3)
+                                    col_mod, col_del = st.columns(2)
                                     with col_mod:
                                         if not t['id'].startswith("lpu_"):
                                             if st.button(
@@ -694,19 +711,6 @@ elif menu == "👀 Panoramica":
                                                 st.rerun()
                                         else:
                                             st.caption("*(LPU)*")
-                                            
-                                    with col_nota:
-                                        with st.popover("📝 Nota"):
-                                            st.write(f"Gestisci nota per **{t['volontario']}**")
-                                            with st.form(key=f"form_nota_{t['id']}"):
-                                                testo_nota_corr = t.get("note", "")
-                                                nuova_nota_admin = st.text_area("Nota / Appunto:", value=testo_nota_corr, key=f"input_nota_{t['id']}")
-                                                btn_salva_nota = st.form_submit_button("Salva Nota 💾")
-                                                if btn_salva_nota:
-                                                    t["note"] = nuova_nota_admin
-                                                    salva_su_firestore("turni", t["id"], t)
-                                                    st.success("Nota aggiornata!")
-                                                    st.rerun()
                                     
                                     with col_del:
                                         with st.popover(f"🗑️ Elimina"):
@@ -745,7 +749,6 @@ elif menu == "👀 Panoramica":
                                                 m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
                                             
                                             nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
-                                            nuove_note = st.text_area("Note:", value=t.get("note", ""), key=f"note_mod_{t['id']}")
                                             
                                             nuovi_cani = st.multiselect(
                                                 "Cani gestiti:",
@@ -767,7 +770,7 @@ elif menu == "👀 Panoramica":
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
                                                         "cani_fatti": nuovi_cani,
-                                                        "note": nuove_note
+                                                        "note": t.get("note", "")
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
                                                     st.session_state[f"editing_{t['id']}"] = False
@@ -1208,8 +1211,6 @@ elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
                                 st.write(
                                     f"• **{t['volontario']}** ({t['orario']}) - {cani_str}"
                                 )
-                                if t["note"]:
-                                    st.caption(f"Note: {t['note']}")
 
             with col_m:
                 mostra_fascia_storica("Mattina", col_m)
