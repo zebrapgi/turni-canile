@@ -65,9 +65,9 @@ def carica_da_firestore_cached(collezione_nome):
             if "lista" in data:
                 return data["lista"].get("elementi", [])
             return []
-        elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio":
+        elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio" or collezione_nome == "note_turni":
             return data if data else {}
-        elif collezione_nome == "turni" or collezione_nome == "turni_lpu" or collezione_nome == "note_turni":
+        elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
             lista = [doc.to_dict() for doc in docs]
             return lista if lista else []
         return {}
@@ -142,7 +142,8 @@ if "turni" not in st.session_state:
     st.session_state.turni = carica_da_firestore_live("turni", [])
 
 if "note_turni_db" not in st.session_state:
-    st.session_state.note_turni_db = carica_da_firestore_live("note_turni", {})
+    res_note = carica_da_firestore_live("note_turni", {})
+    st.session_state.note_turni_db = res_note if isinstance(res_note, dict) else {}
 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
@@ -607,6 +608,63 @@ elif menu == "👀 Panoramica":
     )
     settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
+    # --- SEZIONE REPORT MATTINA (SOLO GIORNO CORRENTE E AL MATTINO) ---
+    giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+    giorno_oggi_str = giorni_map_ita[adesso.weekday()]
+    
+    is_mattina_corrente = (ora_attuale < 13) and (settimana_vista_chiave == chiave_corr)
+
+    if is_mattina_corrente:
+        with st.container(border=True):
+            st.markdown(f"### 📄 Report Giornaliero del Mattino ({giorno_oggi_str})")
+            st.caption("Scarica il report riepilogativo con i cani che escono, quelli che non escono e i volontari di oggi.")
+            
+            turni_oggi_report = [
+                t for t in turni_attuali 
+                if t.get("giorno") == giorno_oggi_str and t.get("settimana_chiave", t.get("settimana")) == chiave_corr
+            ]
+            
+            cani_con_uscita = {}
+            for t in turni_oggi_report:
+                vol = t.get("volontario")
+                for c in t.get("cani_fatti", []):
+                    if c not in cani_con_uscita:
+                        cani_con_uscita[c] = []
+                    if vol not in cani_con_uscita[c]:
+                        cani_con_uscita[c].append(vol)
+            
+            cani_che_escono = list(cani_con_uscita.keys())
+            cani_che_non_escono = [c for c in st.session_state.cani if c not in cani_con_uscita]
+            
+            report_lines = []
+            report_lines.append(f"REPORT GIORNALIERO CANILE - {giorno_oggi_str} ({adesso.strftime('%d/%m/%Y')})")
+            report_lines.append("="*50 + "\n")
+            
+            report_lines.append("1. CANI CHE ESCONO:")
+            if not cani_che_escono:
+                report_lines.append("   Nessun cane pianificato per l'uscita oggi.")
+            else:
+                for c in sorted(cani_che_escono):
+                    vols = ", ".join(cani_con_uscita[c])
+                    report_lines.append(f"   - {c} (Gestito/a da: {vols})")
+            
+            report_lines.append("\n2. CANI CHE NON ESCONO:")
+            if not cani_che_non_escono:
+                report_lines.append("   Tutti i cani escono oggi!")
+            else:
+                for c in sorted(cani_che_non_escono):
+                    report_lines.append(f"   - {c}")
+            
+            report_testo = "\n".join(report_lines)
+            
+            st.download_button(
+                label="📥 Scarica Report Giornaliero (TXT/PDF)",
+                data=report_testo,
+                file_name=f"report_canile_{giorno_oggi_str.lower()}_{adesso.strftime('%Y%m%d')}.txt",
+                mime="text/plain",
+                key="btn_download_report_mattina"
+            )
+
     turni_filtrati = [
         t for t in turni_attuali if t.get("settimana_chiave", t.get("settimana")) == settimana_vista_chiave
     ]
@@ -622,7 +680,7 @@ elif menu == "👀 Panoramica":
         st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
     if not turni_filtrati:
-        st.info("Nessun turno trovato con i filtri selezionati per este periodo.")
+        st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
     else:
         giorni_settimana = [
             "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
@@ -643,8 +701,12 @@ elif menu == "👀 Panoramica":
                         icona_fascia = "🌅" if fascia_nome == "Mattina" else "🌇"
                         st.markdown(f"### {icona_fascia} {fascia_nome}")
                         
-                        # Sezione Nota Admin Generale per il Turno (Giorno + Fascia + Settimana)
                         chiave_nota_turno = f"{settimana_vista_chiave}_{giorno}_{fascia_nome}"
+                        
+                        # Controllo sicuro del dizionario note in session_state
+                        if not isinstance(st.session_state.note_turni_db, dict):
+                            st.session_state.note_turni_db = {}
+                            
                         nota_corrente_turno = st.session_state.note_turni_db.get(chiave_nota_turno, {}).get("testo", "")
                         
                         if nota_corrente_turno:
@@ -769,7 +831,7 @@ elif menu == "👀 Panoramica":
                                                         "giorno": t["giorno"],
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
-                                                        "cani_fatti": nuovi_cani,
+                                                        "cani_fatti": nouveaux_cani if 'nouveaux_cani' in locals() else nuovi_cani,
                                                         "note": t.get("note", "")
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
@@ -1528,7 +1590,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
