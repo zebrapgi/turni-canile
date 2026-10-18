@@ -703,7 +703,6 @@ elif menu == "👀 Panoramica":
                         
                         chiave_nota_turno = f"{settimana_vista_chiave}_{giorno}_{fascia_nome}"
                         
-                        # Controllo sicuro del dizionario note in session_state
                         if not isinstance(st.session_state.note_turni_db, dict):
                             st.session_state.note_turni_db = {}
                             
@@ -831,7 +830,7 @@ elif menu == "👀 Panoramica":
                                                         "giorno": t["giorno"],
                                                         "fascia": t["fascia"],
                                                         "orario": nuovo_orario,
-                                                        "cani_fatti": nouveaux_cani if 'nouveaux_cani' in locals() else nuovi_cani,
+                                                        "cani_fatti": nuovi_cani,
                                                         "note": t.get("note", "")
                                                     }
                                                     salva_su_firestore("turni", t["id"], t_aggiornato)
@@ -1590,7 +1589,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
