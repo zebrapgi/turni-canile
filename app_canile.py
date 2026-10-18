@@ -608,11 +608,10 @@ elif menu == "👀 Panoramica":
     )
     settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
-    # --- SEZIONE REPORT MATTINA (AGGIUNTO CONTROLLO SIMULAZIONE ADMIN) ---
+    # --- SEZIONE REPORT MATTINA ---
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    # Visibile se è mattina reale oppure se l'utente è admin (così puoi testarlo in qualsiasi momento)
     is_mattina_corrente = ((ora_attuale < 13) or st.session_state.is_admin) and (settimana_vista_chiave == chiave_corr)
 
     if is_mattina_corrente:
@@ -764,6 +763,21 @@ elif menu == "👀 Panoramica":
                                     f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
                                 )
 
+                                # --- NOTA SINGOLA DEL VOLONTARIO ---
+                                nota_singolo = t.get("note", "")
+                                if nota_singolo:
+                                    st.markdown(f"> 💬 *Nota:* {nota_singolo}")
+
+                                with st.popover(f"📝 Nota ({t['volontario']})", key=f"pop_nota_{t['id']}"):
+                                    with st.form(key=f"form_nota_{t['id']}"):
+                                        nuova_nota_vol = st.text_area("Messaggio / Avviso per questo turno:", value=nota_singolo, key=f"inp_nota_{t['id']}")
+                                        btn_salva_nota_vol = st.form_submit_button("Salva Nota 💾")
+                                        if btn_salva_nota_vol:
+                                            t["note"] = nuova_nota_vol
+                                            salva_su_firestore("turni", t["id"], t)
+                                            st.success("Nota salvata con successo!")
+                                            st.rerun()
+
                                 if st.session_state.is_admin:
                                     col_mod, col_del = st.columns(2)
                                     with col_mod:
@@ -778,7 +792,7 @@ elif menu == "👀 Panoramica":
                                             st.caption("*(LPU)*")
                                     
                                     with col_del:
-                                        with st.popover(f"🗑️ Elimina"):
+                                        with st.popover(f"🗑️ Elimina", key=f"del_pop_{t['id']}"):
                                             st.write("Eliminare questo turno?")
                                             if st.button("Conferma 🛑", key=f"conf_del_{t['id']}"):
                                                 if t['id'].startswith("lpu_"):
@@ -1593,7 +1607,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
-                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id") == f"lpu_{tl['id']}"), None)
+                                turno_gen_trovato = next((item for item in turno_gen_esistente if item.get("id"] == f"lpu_{tl['id']}"), None)
                                 if turno_gen_trovato:
                                     turno_gen_trovato["note"] = f"[LPU - Pulizie / {nuove_ore_val}h] {nuove_note_val}"
                                     salva_su_firestore("turni", f"lpu_{tl['id']}", turno_gen_trovato)
