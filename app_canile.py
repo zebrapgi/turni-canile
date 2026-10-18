@@ -608,16 +608,20 @@ elif menu == "👀 Panoramica":
     )
     settimana_vista_chiave = mappa_scelte_vis[settimana_vista_label]
 
-    # --- SEZIONE REPORT MATTINA (SOLO GIORNO CORRENTE E AL MATTINO) ---
+    # --- SEZIONE REPORT MATTINA (AGGIUNTO CONTROLLO SIMULAZIONE ADMIN) ---
     giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
     giorno_oggi_str = giorni_map_ita[adesso.weekday()]
     
-    is_mattina_corrente = (ora_attuale < 13) and (settimana_vista_chiave == chiave_corr)
+    # Visibile se è mattina reale oppure se l'utente è admin (così puoi testarlo in qualsiasi momento)
+    is_mattina_corrente = ((ora_attuale < 13) or st.session_state.is_admin) and (settimana_vista_chiave == chiave_corr)
 
     if is_mattina_corrente:
         with st.container(border=True):
             st.markdown(f"### 📄 Report Giornaliero del Mattino ({giorno_oggi_str})")
-            st.caption("Scarica il report riepilogativo con i cani che escono, quelli che non escono e i volontari di oggi.")
+            if st.session_state.is_admin and ora_attuale >= 13:
+                st.caption("💡 *[Modalità test Admin attiva: il report è visibile anche se sono passate le 13:00]*")
+            else:
+                st.caption("Scarica il report riepilogativo con i cani che escono, quelli che non escono e i volontari di oggi.")
             
             turni_oggi_report = [
                 t for t in turni_attuali 
