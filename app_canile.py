@@ -132,7 +132,15 @@ if "volontari_db" not in st.session_state:
         st.session_state.volontari_db = []
 
 if "volontari_permessi" not in st.session_state:
-    st.session_state.volontari_permessi = carica_da_firestore_live("volontari_permessi", {})
+    permessi_caricati = carica_da_firestore_live("volontari_permessi", {})
+    if not permessi_caricati:
+        # Permessi / associazioni di base iniziali (completamente modificabili da Admin)
+        permessi_caricati = {
+            "ALEX MATTEO CIRSTEA": {"jolly": True, "divieti": [], "no_giada": False},
+            "Babi": {"jolly": True, "divieti": [], "no_giada": False},
+            "Laura C": {"jolly": True, "divieti": [], "no_giada": False},
+        }
+    st.session_state.volontari_permessi = permessi_caricati
 
 if "lpu_data" not in st.session_state:
     st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
@@ -157,9 +165,7 @@ if "is_admin" not in st.session_state:
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
     permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
     
-    # Compatibilità con i Jolly storici pre-impostati
-    jolly_default = ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]
-    if permessi_vol.get("jolly", False) or volontario_selezionato in jolly_default:
+    if permessi_vol.get("jolly", False):
         return True
     
     divieti_cane = permessi_vol.get("divieti", [])
@@ -1238,7 +1244,7 @@ elif menu == "👥 Volontari":
                 with col_v1:
                     p_vol = st.session_state.volontari_permessi.get(vol, {})
                     info_stato = []
-                    if p_vol.get("jolly", False) or vol in ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]:
+                    if p_vol.get("jolly", False):
                         info_stato.append("⭐ Jolly")
                     if p_vol.get("divieti"):
                         info_stato.append(f"Divieti: {', '.join(p_vol['divieti'])}")
