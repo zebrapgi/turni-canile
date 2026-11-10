@@ -1248,7 +1248,7 @@ elif menu == "👥 Volontari":
                     if p_vol.get("cani_gruppo_dedicato_abilitati"):
                         info_stato.append(f"Gruppo dedicato abilitati: {', '.join(p_vol['cani_gruppo_dedicato_abilitati'])}")
                     
-                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Nessuna abilitazione speciale)"
+                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " ()"
                     st.write(f"👤 **{vol}**{dettagli_str}")
                 with col_v2:
                     with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
