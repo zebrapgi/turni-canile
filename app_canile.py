@@ -153,33 +153,45 @@ if "note_turni_db" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- FUNZIONE DI VALIDAZIONE DINAMICA ---
+# --- FUNZIONE DI VALIDAZIONE DINAMICA CON CONTROLLO CUMULATIVO ---
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
-    # Recupera i permessi del volontario salvati su Firebase (o di default vuoti)
     permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
     
     # Compatibilità con i Jolly storici pre-impostati
-     Jolly_default = ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]
-    if permessi_vol.get("jolly", False) or volontario_selezionato in Jolly_default:
+    jolly_default = ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]
+    if permessi_vol.get("jolly", False) or volontario_selezionato in jolly_default:
         return True
     
     divieti_cane = permessi_vol.get("divieti", [])
     no_giada = permessi_vol.get("no_giada", False)
+    
+    cani_vietati_chiusi = []
+    cani_vietati_gruppo = []
     
     for cane in cani_selezionati:
         dettagli_cane = st.session_state.cani_dettagli.get(cane, {})
         is_cane_chiuso = dettagli_cane.get("cane_chiuso", False)
         is_gruppo_dedicato = dettagli_cane.get("gruppo_dedicato", False)
         
-        # Controllo sui cani chiusi
         if is_cane_chiuso and cane in divieti_cane:
-            st.error(f"Attenzione, non sei autorizzato alla gestione di {cane} (cane chiuso). Seleziona solo i cani assegnati al tuo profilo.")
-            return False
+            cani_vietati_chiusi.append(cane)
             
-        # Controllo specifico per gruppo dedicato (es. Giada)
         if is_gruppo_dedicato and no_giada:
-            st.error(f"Attenzione, non fai parte del gruppo dedicato per la gestione di {cane}. Seleziona solo i cani assegnati al tuo profilo.")
-            return False
+            cani_vietati_gruppo.append(cane)
+            
+    errori_totali = []
+    if cani_vietati_chiusi:
+        elenco_chiusi = ", ".join(cani_vietati_chiusi)
+        errori_totali.append(f"non sei autorizzato alla gestione dei cani chiusi: `{elenco_chiusi}`")
+        
+    if cani_vietati_gruppo:
+        elenco_gruppo = ", ".join(cani_vietati_gruppo)
+        errori_totali.append(f"non fai parte del gruppo dedicato per: `{elenco_gruppo}`")
+        
+    if errori_totali:
+        messaggio_finale = "⚠️ **Attenzione:** " + " e ".join(errori_totali) + ". Seleziona solo i cani assegnati al tuo profilo."
+        st.error(messaggio_finale)
+        return False
             
     return True
 
@@ -1184,7 +1196,6 @@ elif menu == "👥 Volontari":
         else:
             vol_selezionato_perm = st.selectbox("Seleziona volontario da configurare:", volontari_lista, key="sel_vol_permessi")
             
-            # Ricava tutti i cani che sono marcati come "cane chiuso"
             cani_chiusi_disponibili = [
                 c for c in st.session_state.cani 
                 if st.session_state.cani_dettagli.get(c, {}).get("cane_chiuso", False)
