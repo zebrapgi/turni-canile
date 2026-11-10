@@ -134,11 +134,10 @@ if "volontari_db" not in st.session_state:
 if "volontari_permessi" not in st.session_state:
     permessi_caricati = carica_da_firestore_live("volontari_permessi", {})
     if not permessi_caricati:
-        # Permessi / associazioni di base iniziali (completamente modificabili da Admin)
         permessi_caricati = {
-            "ALEX MATTEO CIRSTEA": {"jolly": True, "divieti": [], "no_giada": False},
-            "Babi": {"jolly": True, "divieti": [], "no_giada": False},
-            "Laura C": {"jolly": True, "divieti": [], "no_giada": False},
+            "ALEX MATTEO CIRSTEA": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
+            "Babi": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
+            "Laura C": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
         }
     st.session_state.volontari_permessi = permessi_caricati
 
@@ -164,12 +163,8 @@ if "is_admin" not in st.session_state:
 # --- FUNZIONE DI VALIDAZIONE DINAMICA CON CONTROLLO CUMULATIVO ---
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
     permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
-    
-    if permessi_vol.get("jolly", False):
-        return True
-    
-    divieti_cane = permessi_vol.get("divieti", [])
-    no_giada = permessi_vol.get("no_giada", False)
+    cani_chiusi_esclusi = permessi_vol.get("cani_chiusi_esclusi", [])
+    no_gruppo_dedicato = permessi_vol.get("no_gruppo_dedicato", False)
     
     cani_vietati_chiusi = []
     cani_vietati_gruppo = []
@@ -179,10 +174,10 @@ def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
         is_cane_chiuso = dettagli_cane.get("cane_chiuso", False)
         is_gruppo_dedicato = dettagli_cane.get("gruppo_dedicato", False)
         
-        if is_cane_chiuso and cane in divieti_cane:
+        if is_cane_chiuso and cane in cani_chiusi_esclusi:
             cani_vietati_chiusi.append(cane)
             
-        if is_gruppo_dedicato and no_giada:
+        if is_gruppo_dedicato and no_gruppo_dedicato:
             cani_vietati_gruppo.append(cane)
             
     errori_totali = []
@@ -192,7 +187,7 @@ def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
         
     if cani_vietati_gruppo:
         elenco_gruppo = ", ".join(cani_vietati_gruppo)
-        errori_totali.append(f"non fai parte del gruppo dedicato per: `{elenco_gruppo}`")
+        errori_totali.append(f"non fai parte dei cani con gruppo dedicato per: `{elenco_gruppo}`")
         
     if errori_totali:
         messaggio_finale = "⚠️ **Attenzione:** " + " e ".join(errori_totali) + ". Seleziona solo i cani assegnati al tuo profilo."
@@ -998,7 +993,7 @@ elif menu == "🐶 Cani":
                 st.markdown("---")
                 st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
                 is_cane_chiuso_new = st.checkbox("🔒 Cane chiuso", key="novo_cane_chiuso")
-                is_gruppo_dedicato_new = st.checkbox("👥 Gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
+                is_gruppo_dedicato_new = st.checkbox("👥 Cani con gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
                 
                 btn_salva_nuovo_cane = st.form_submit_button("Salva Cane e Scheda 📝")
                 if btn_salva_nuovo_cane:
@@ -1065,7 +1060,7 @@ elif menu == "🐶 Cani":
                     if is_chiuso:
                         badges.append("🔒 Cane chiuso")
                     if is_grup_ded:
-                        badges.append("👥 Gruppo dedicato")
+                        badges.append("👥 Cani con gruppo dedicato")
                     if badges:
                         st.markdown(f"• **Stato:** {' | '.join(badges)}")
                 
@@ -1153,7 +1148,7 @@ elif menu == "🐶 Cani":
                     st.markdown("---")
                     st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
                     m_chiuso = st.checkbox("🔒 Cane chiuso", value=is_chiuso, key=f"m_chiuso_{dog}")
-                    m_grup_ded = st.checkbox("👥 Gruppo dedicato", value=is_grup_ded, key=f"m_grup_{dog}")
+                    m_grup_ded = st.checkbox("👥 Cani con gruppo dedicato", value=is_grup_ded, key=f"m_grup_{dog}")
                     
                     btn_salva_mod_scheda = st.form_submit_button("Salva Modifiche Scheda ✅")
                     if btn_salva_mod_scheda:
@@ -1178,7 +1173,7 @@ elif menu == "👥 Volontari":
     if not st.session_state.is_admin:
         st.warning("🔒 Area riservata agli amministratori.")
     else:
-        st.markdown("Aggiungi nuovi volontari o configura i permessi e i divieti sui cani chiusi per ciascun profilo.")
+        st.markdown("Aggiungi nuovi volontari o configura i permessi sui **cani chiusi** e sui **cani con gruppo dedicato** per ciascun profilo.")
 
         with st.form("form_aggiungi_volontario_admin"):
             new_vol = st.text_input("Aggiungi manualmente un volontario:")
@@ -1194,7 +1189,7 @@ elif menu == "👥 Volontari":
                     st.warning("Questo volontario è già presente nella lista.")
 
         st.markdown("---")
-        st.subheader("⚙️ Configurazione Permessi e Divieti per Volontario")
+        st.subheader("⚙️ Configurazione Permessi per Volontario")
         
         volontari_lista = sorted(list(set(st.session_state.volontari_db)))
         if not volontari_lista:
@@ -1208,29 +1203,25 @@ elif menu == "👥 Volontari":
             ]
             
             permessi_correnti = st.session_state.volontari_permessi.get(vol_selezionato_perm, {})
-            jolly_attuale = permessi_correnti.get("jolly", False)
-            divieti_attuali = [c for c in permessi_correnti.get("divieti", []) if c in cani_chiusi_disponibili]
-            no_giada_attuale = permessi_correnti.get("no_giada", False)
+            cani_chiusi_esclusi_attuali = [c for c in permessi_correnti.get("cani_chiusi_esclusi", []) if c in cani_chiusi_disponibili]
+            no_gruppo_dedicato_attuale = permessi_correnti.get("no_gruppo_dedicato", False)
             
             with st.form(f"form_permessi_{vol_selezionato_perm}"):
                 st.markdown(f"**Modifica regole per: {vol_selezionato_perm}**")
                 
-                is_jolly = st.checkbox("⭐ Jolly (Può gestire TUTTI i cani senza restrizioni)", value=jolly_attuale)
-                
-                divieti_scelti = st.multiselect(
-                    "❌ Cani chiusi NON consentiti (Divieti):",
+                cani_chiusi_esclusi_scelti = st.multiselect(
+                    "🔒 Cani chiusi NON accessibili (esclusi):",
                     options=cani_chiusi_disponibili,
-                    default=divieti_attuali
+                    default=cani_chiusi_esclusi_attuali
                 )
                 
-                no_giada_scelto = st.checkbox("👥 Escluso dal gruppo dedicato (es. Giada)", value=no_giada_attuale)
+                no_gruppo_dedicato_scelto = st.checkbox("👥 Escluso dai cani con gruppo dedicato", value=no_gruppo_dedicato_attuale)
                 
                 btn_salva_permessi = st.form_submit_button("Salva Permessi Volontario 💾")
                 if btn_salva_permessi:
                     nuovi_dati_permessi = {
-                        "jolly": is_jolly,
-                        "divieti": divieti_scelti,
-                        "no_giada": no_giada_scelto
+                        "cani_chiusi_esclusi": cani_chiusi_esclusi_scelti,
+                        "no_gruppo_dedicato": no_gruppo_dedicato_scelto
                     }
                     st.session_state.volontari_permessi[vol_selezionato_perm] = nuovi_dati_permessi
                     salva_su_firestore("volontari_permessi", vol_selezionato_perm, nuovi_dati_permessi)
@@ -1244,14 +1235,12 @@ elif menu == "👥 Volontari":
                 with col_v1:
                     p_vol = st.session_state.volontari_permessi.get(vol, {})
                     info_stato = []
-                    if p_vol.get("jolly", False):
-                        info_stato.append("⭐ Jolly")
-                    if p_vol.get("divieti"):
-                        info_stato.append(f"Divieti: {', '.join(p_vol['divieti'])}")
-                    if p_vol.get("no_giada", False):
-                        info_stato.append("No Gruppo Dedicato")
+                    if p_vol.get("cani_chiusi_esclusi"):
+                        info_stato.append(f"Cani chiusi esclusi: {', '.join(p_vol['cani_chiusi_esclusi'])}")
+                    if p_vol.get("no_gruppo_dedicato", False):
+                        info_stato.append("Escluso da gruppo dedicato")
                     
-                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Standard)"
+                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Tutti i cani abilitati)"
                     st.write(f"👤 **{vol}**{dettagli_str}")
                 with col_v2:
                     with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
