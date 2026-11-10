@@ -65,6 +65,8 @@ def carica_da_firestore_cached(collezione_nome):
             if "lista" in data:
                 return data["lista"].get("elementi", [])
             return []
+        elif collezione_nome == "restrizioni_volontari":
+            return data if data else {}
         elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio" or collezione_nome == "note_turni":
             return data if data else {}
         elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
@@ -97,6 +99,48 @@ def elimina_da_firestore(collezione_nome, doc_id):
     except Exception as e:
         st.error(f"Errore di eliminazione: {e}")
         return False
+
+# --- CONFIGURAZIONE INIZIALE RESTRIZIONI VOLONTARI ---
+DEFAULT_RESTRIZIONI_VOLONTARI = {
+    "ALEX MATTEO CIRSTEA": {"jolly": True},
+    "Babi": {"jolly": True},
+    "Laura C": {"jolly": True},
+    
+    "ALICE PRUNERI": {"divieti": ["Macchia", "Sami"], "no_giada": True},
+    "Alda Muttoni": {"divieti": ["Sami"], "no_giada": True},
+    "Alessandra": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Alessio Spolverini": {"divieti": ["Macchia"], "no_giada": True},
+    "Alice Tagliapietra": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Camilla": {"divieti": ["Lucky", "Diego", "Marley"], "no_giada": False},
+    "Daniela B.": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Elena Bernasconi": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Franci Romeri": {"divieti": ["Lucky", "Diego"], "no_giada": True},
+    "Francina": {"divieti": ["Macchia", "Marley"], "no_giada": True},
+    "Gian Luca Cirillo": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Giorgio": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Giuliano ghilotti": {"divieti": ["Macchia", "Sami", "Lucky", "Marley"], "no_giada": True},
+    "Jennifer": {"divieti": [], "no_giada": True},
+    "Laura Brambilla": {"divieti": [], "no_giada": True},
+    "Laura G": {"divieti": ["Lucky", "Marley"], "no_giada": False},
+    "Maddalena": {"divieti": ["Diego", "Marley"], "no_giada": True},
+    "Melanie Gusmeroli": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": False},
+    "Rachele Bettini": {"divieti": [], "no_giada": True},
+    "SARA BORDER": {"divieti": ["Lucky", "Marley"], "no_giada": True},
+    "Sabrina Fanchi": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": False},
+    "Sara L": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Simona Ciapponi": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
+    "Simona Pietroboni": {"divieti": ["Macchia", "Marley"], "no_giada": True}
+}
+
+if "restrizioni_volontari_db" not in st.session_state:
+    res_db = carica_da_firestore_live("restrizioni_volontari", {})
+    if not res_db:
+        # Inizializza con i default su Firestore se vuoto
+        st.session_state.restrizioni_volontari_db = DEFAULT_RESTRIZIONI_VOLONTARI
+        for vol, reg in DEFAULT_RESTRIZIONI_VOLONTARI.items():
+            salva_su_firestore("restrizioni_volontari", vol, reg)
+    else:
+        st.session_state.restrizioni_volontari_db = res_db
 
 # Inizializzazione sicura dello stato con Firebase
 if "cani" not in st.session_state:
@@ -187,6 +231,31 @@ def calcola_eta(data_nascita_str):
             return f"{anni} {'anno' if anni == 1 else 'anni'} e {mesi} {'mese' if mesi == 1 else 'mesi'}"
     except Exception:
         return "N/D"
+
+# --- FUNZIONE VALIDAZIONE ABILITAZIONI VOLONTARIO ---
+def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
+    restrizioni_map = st.session_state.get("restrizioni_volontari_db", {})
+    info_vol = restrizioni_map.get(volontario_selezionato, {})
+    
+    # Se il volontario è jolly, tutto ok
+    if info_vol.get("jolly", False):
+        return True
+    
+    divieti_cane = info_vol.get("divieti", [])
+    non_nel_gruppo_giada = info_vol.get("no_giada", False)
+    
+    for cane in cani_selezionati:
+        # Controllo sui cani con gestione dedicata
+        if cane in divieti_cane:
+            st.error(f"Attenzione, non sei autorizzato alla gestione di {cane}. Seleziona solo i cani assegnati al tuo profilo.")
+            return False
+            
+        # Controllo specifico per Giada (gruppo dedicato)
+        if cane == "Giada" and non_nel_gruppo_giada:
+            st.error(f"Attenzione, non fai parte del gruppo dedicato per la gestione di Giada. Seleziona solo i cani assegnati al tuo profilo.")
+            return False
+            
+    return True
 
 # --- FUNZIONE GESTIONE INTERVALLI E CHIAVI SETTIMANA (STABILE) ---
 def get_info_settimane():
@@ -526,21 +595,21 @@ if menu == "📅 Inserisci":
 
     if seleziona_tutti:
         cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
+            "✅ Cani con cui interagisci (obbligatorio selezionarne almeno uno):",
             st.session_state.cani,
             default=st.session_state.cani,
             key="multiselect_cani_tutti"
         )
     elif cani_suggeriti:
         cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
+            "✅ Cani con cui interagisci (obbligatorio selezionarne almeno uno):",
             st.session_state.cani,
             default=cani_suggeriti,
             key="multiselect_cani_sugg"
         )
     else:
         cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):", 
+            "✅ Cani con cui interagisci (obbligatorio selezionarne almeno uno):", 
             st.session_state.cani,
             key="multiselect_cani_vuoto"
         )
@@ -570,10 +639,17 @@ if menu == "📅 Inserisci":
                 st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposita casella in alto prima di registrare.")
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
+            elif not valida_e_salva_turno(volontario_finale, cani_fatti):
+                # La funzione valida_e_salva_turno mostra già l'errore specifico bloccante
+                pass
             else:
                 if volontario_finale not in st.session_state.volontari_db:
                     st.session_state.volontari_db.append(volontario_finale)
                     db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                    # Inizializza regola standard per nuovo volontario se non presente
+                    if volontario_finale not in st.session_state.restrizioni_volontari_db:
+                        st.session_state.restrizioni_volontari_db[volontario_finale] = {"divieti": [], "no_giada": False}
+                        salva_su_firestore("restrizioni_volontari", volontario_finale, {"divieti": [], "no_giada": False})
                     st.cache_data.clear()
 
                 lista_turni = carica_turni_normalizzati()
@@ -874,6 +950,8 @@ elif menu == "👀 Panoramica":
                                             if btn_salva_mod:
                                                 if not nuovi_cani:
                                                     st.error("Errore: seleziona almeno un cane.")
+                                                elif not valida_e_salva_turno(t["volontario"], nuovi_cani):
+                                                    pass
                                                 else:
                                                     t_aggiornato = {
                                                         "id": t["id"],
@@ -1094,37 +1172,93 @@ elif menu == "🐶 Cani":
                         st.rerun()
 
 elif menu == "👥 Volontari":
-    st.header("Gestione Anagrafica Volontari")
+    st.header("👥 Gestione Anagrafica & Autorizzazioni Volontari")
 
     if not st.session_state.is_admin:
-        st.warning("🔒 Area riservata agli amministratori.")
+        st.error("🔒 Area riservata agli amministratori.")
     else:
-        st.markdown("Visualizza l'elenco dei volontari registrati, rimuovi chi non frequenta più o correggi i nomi.")
+        tab_v_elenco, tab_v_permessi = st.tabs(["📋 Elenco Volontari & Aggiunta", "⚙️ Gestione Autorizzazioni Cani (Admin)"])
 
-        new_vol = st.text_input("Aggiungi manualmente un volontario:")
-        if st.button("Aggiungi Volontario"):
-            if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
-                st.session_state.volontari_db.append(new_vol.strip())
-                db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
-                st.cache_data.clear()
-                st.success(f"Volontario '{new_vol}' aggiunto con successo!")
-                st.rerun()
-            elif new_vol.strip() in st.session_state.volontari_db:
-                st.warning("Questo volontario è già presente nella lista.")
+        with tab_v_elenco:
+            st.markdown("Visualizza l'elenco dei volontari registrati, rimuovi chi non frequenta più o correggi i nomi.")
 
-        st.subheader("Lista attuale dei volontari registrati:")
-        for vol in sorted(st.session_state.volontari_db):
-            col_v1, col_v2 = st.columns([4, 1])
-            with col_v1:
-                st.write(f"👤 **{vol}**")
-            with col_v2:
-                with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
-                    st.write(f"Confermi l'eliminazione di {vol}?")
-                    if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
-                        st.session_state.volontari_db.remove(vol)
-                        db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
-                        st.cache_data.clear()
-                        st.success(f"Volontario '{vol}' eliminato.")
+            new_vol = st.text_input("Aggiungi manualmente un volontario:")
+            if st.button("Aggiungi Volontario"):
+                if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
+                    nome_v_pulito = new_vol.strip()
+                    st.session_state.volontari_db.append(nome_v_pulito)
+                    db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                    
+                    # Inizializza regole vuote (default) per il nuovo volontario
+                    if nome_v_pulito not in st.session_state.restrizioni_volontari_db:
+                        st.session_state.restrizioni_volontari_db[nome_v_pulito] = {"divieti": [], "no_giada": False}
+                        salva_su_firestore("restrizioni_volontari", nome_v_pulito, {"divieti": [], "no_giada": False})
+
+                    st.cache_data.clear()
+                    st.success(f"Volontario '{nome_v_pulito}' aggiunto con successo!")
+                    st.rerun()
+                elif new_vol.strip() in st.session_state.volontari_db:
+                    st.warning("Questo volontario è già presente nella lista.")
+
+            st.subheader("Lista attuale dei volontari registrati:")
+            for vol in sorted(st.session_state.volontari_db):
+                col_v1, col_v2 = st.columns([4, 1])
+                with col_v1:
+                    st.write(f"👤 **{vol}**")
+                with col_v2:
+                    with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
+                        st.write(f"Confermi l'eliminazione di {vol}?")
+                        if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
+                            st.session_state.volontari_db.remove(vol)
+                            db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                            if vol in st.session_state.restrizioni_volontari_db:
+                                del st.session_state.restrizioni_volontari_db[vol]
+                                elimina_da_firestore("restrizioni_volontari", vol)
+                            st.cache_data.clear()
+                            st.success(f"Volontario '{vol}' eliminato.")
+                            st.rerun()
+
+        with tab_v_permessi:
+            st.subheader("⚙️ Modifica Permessi e Gestione Dedicata per Volontario")
+            st.markdown("Seleziona un volontario per configurare se è un **Jolly** (tutti i cani), quali **Cani con gestione dedicata** non può fare, o se è escluso dal **Gruppo dedicato** di Giada.")
+
+            volontari_disponibili_permessi = sorted(list(set(st.session_state.volontari_db)))
+            if not volontari_disponibili_permessi:
+                st.info("Nessun volontario registrato.")
+            else:
+                vol_scelto_admin = st.selectbox("Seleziona Volontario da configurare:", volontari_disponibili_permessi, key="select_vol_admin_permessi")
+                
+                current_rule = st.session_state.restrizioni_volontari_db.get(vol_scelto_admin, {})
+                is_jolly_curr = current_rule.get("jolly", False)
+                divieti_curr = current_rule.get("divieti", [])
+                no_giada_curr = current_rule.get("no_giada", False)
+
+                cani_gestione_dedicata = ["Lucky", "Marley", "Diego", "Sami", "Macchia"]
+
+                with st.form(f"form_admin_permessi_{vol_scelto_admin}"):
+                    is_jolly_new = st.checkbox("🌟 Utente Jolly (Può gestire TUTTI i cani senza restrizioni)", value=is_jolly_curr)
+                    
+                    st.markdown("---")
+                    st.markdown("🛑 **Cani con gestione dedicata** (spunta quelli che **NON** può gestire):")
+                    divieti_new = []
+                    for c_ded in cani_gestione_dedicata:
+                        spuntato = st.checkbox(f"Non autorizzato a {c_ded}", value=(c_ded in divieti_curr), key=f"div_{vol_scelto_admin}_{c_ded}")
+                        if spuntato:
+                            divieti_new.append(c_ded)
+
+                    st.markdown("---")
+                    no_giada_new = st.checkbox("🐾 Escluso dal **Gruppo dedicato** di Giada (Non può gestire Giada)", value=no_giada_curr)
+
+                    btn_salva_regola = st.form_submit_button("Salva Autorizzazioni Volontario 💾")
+                    if btn_salva_regola:
+                        nuova_regola = {
+                            "jolly": is_jolly_new,
+                            "divieti": divieti_new,
+                            "no_giada": no_giada_new
+                        }
+                        st.session_state.restrizioni_volontari_db[vol_scelto_admin] = nuova_regola
+                        salva_su_firestore("restrizioni_volontari", vol_scelto_admin, nuova_regola)
+                        st.success(f"Permessi aggiornati con successo per **{vol_scelto_admin}**!")
                         st.rerun()
 
 elif menu == "🏡 Archivio Cani Adottati":
@@ -1568,7 +1702,9 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ]["ore_fatte"] = max(
+                                ][
+                                    "ore_fatte"
+                                ] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
@@ -1630,11 +1766,16 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                 ):
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
-                                    ]["ore_fatte"] = max(
+                                    ][
+                                        "ore_fatte"
+                                    ] = max(
                                         0.0,
                                         st.session_state.lpu_data[
-                                            nome_lpu_riferimento
-                                        ]["ore_fatte"]
+                                            nome_lpopu_riferimento = nome_lpu_riferimento
+                                        ]
+                                        if nome_lpu_riferimento in st.session_state.lpu_data else "",
+                                        # Fix safety check
+                                        st.session_state.lpu_data[nome_lpu_riferimento]["ore_fatte"]
                                         + differenza_ore,
                                     )
                                     salva_su_firestore(
