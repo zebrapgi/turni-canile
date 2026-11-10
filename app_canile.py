@@ -65,6 +65,8 @@ def carica_da_firestore_cached(collezione_nome):
             if "lista" in data:
                 return data["lista"].get("elementi", [])
             return []
+        elif collezione_nome == "volontari_permessi":
+            return data if data else {}
         elif collezione_nome == "lpu_data" or collezione_nome == "cani_archivio" or collezione_nome == "note_turni":
             return data if data else {}
         elif collezione_nome == "turni" or collezione_nome == "turni_lpu":
@@ -129,6 +131,9 @@ if "volontari_db" not in st.session_state:
     except Exception:
         st.session_state.volontari_db = []
 
+if "volontari_permessi" not in st.session_state:
+    st.session_state.volontari_permessi = carica_da_firestore_live("volontari_permessi", {})
+
 if "lpu_data" not in st.session_state:
     st.session_state.lpu_data = carica_da_firestore_live("lpu_data", {})
 
@@ -148,56 +153,31 @@ if "note_turni_db" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- MAPPATURA RESTRIZIONI VOLONTARI ---
-RESTRIZIONI_VOLONTARI = {
-    "ALEX MATTEO CIRSTEA": {"jolly": True},
-    "Babi": {"jolly": True},
-    "Laura C": {"jolly": True},
-    
-    "ALICE PRUNERI": {"divieti": ["Macchia", "Sami"], "no_giada": True},
-    "Alda Muttoni": {"divieti": ["Sami"], "no_giada": True},
-    "Alessandra": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Alessio Spolverini": {"divieti": ["Macchia"], "no_giada": True},
-    "Alice Tagliapietra": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Camilla": {"divieti": ["Lucky", "Diego", "Marley"], "no_giada": False},
-    "Daniela B.": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Elena Bernasconi": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Franci Romeri": {"divieti": ["Lucky", "Diego"], "no_giada": True},
-    "Francina": {"divieti": ["Macchia", "Marley"], "no_giada": True},
-    "Gian Luca Cirillo": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Giorgio": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Giuliano ghilotti": {"divieti": ["Macchia", "Sami", "Lucky", "Marley"], "no_giada": True},
-    "Jennifer": {"divieti": [], "no_giada": True},
-    "Laura Brambilla": {"divieti": [], "no_giada": True},
-    "Laura G": {"divieti": ["Lucky", "Marley"], "no_giada": False},
-    "Maddalena": {"divieti": ["Diego", "Marley"], "no_giada": True},
-    "Melanie Gusmeroli": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": False},
-    "Rachele Bettini": {"divieti": [], "no_giada": True},
-    "SARA BORDER": {"divieti": ["Lucky", "Marley"], "no_giada": True},
-    "Sabrina Fanchi": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": False},
-    "Sara L": {"divieti": ["Macchia", "Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Simona Ciapponi": {"divieti": ["Sami", "Lucky", "Diego", "Marley"], "no_giada": True},
-    "Simona Pietroboni": {"divieti": ["Macchia", "Marley"], "no_giada": True}
-}
-
+# --- FUNZIONE DI VALIDAZIONE DINAMICA ---
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
-    info_vol = RESTRIZIONI_VOLONTARI.get(volontario_selezionato, {})
-    if info_vol.get("jolly", False):
+    # Recupera i permessi del volontario salvati su Firebase (o di default vuoti)
+    permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
+    
+    # Compatibilità con i Jolly storici pre-impostati
+     Jolly_default = ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]
+    if permessi_vol.get("jolly", False) or volontario_selezionato in Jolly_default:
         return True
     
-    divieti_cane = info_vol.get("divieti", [])
-    non_nel_gruppo_giada = info_vol.get("no_giada", False)
+    divieti_cane = permessi_vol.get("divieti", [])
+    no_giada = permessi_vol.get("no_giada", False)
     
     for cane in cani_selezionati:
         dettagli_cane = st.session_state.cani_dettagli.get(cane, {})
-        is_gestione_dedicata = dettagli_cane.get("gestione_dedicata", False)
+        is_cane_chiuso = dettagli_cane.get("cane_chiuso", False)
         is_gruppo_dedicato = dettagli_cane.get("gruppo_dedicato", False)
         
-        if is_gestione_dedicata and cane in divieti_cane:
-            st.error(f"Attenzione, non sei autorizzato alla gestione di {cane}. Seleziona solo i cani assegnati al tuo profilo.")
+        # Controllo sui cani chiusi
+        if is_cane_chiuso and cane in divieti_cane:
+            st.error(f"Attenzione, non sei autorizzato alla gestione di {cane} (cane chiuso). Seleziona solo i cani assegnati al tuo profilo.")
             return False
             
-        if is_gruppo_dedicato and non_nel_gruppo_giada:
+        # Controllo specifico per gruppo dedicato (es. Giada)
+        if is_gruppo_dedicato and no_giada:
             st.error(f"Attenzione, non fai parte del gruppo dedicato per la gestione di {cane}. Seleziona solo i cani assegnati al tuo profilo.")
             return False
             
@@ -626,7 +606,6 @@ if menu == "📅 Inserisci":
             elif not cani_fatti:
                 st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
             elif not valida_e_salva_turno(volontario_finale, cani_fatti):
-                # Il blocco di validazione ha già mostrato il messaggio st.error specifico
                 pass
             else:
                 if volontario_finale not in st.session_state.volontari_db:
@@ -1000,8 +979,8 @@ elif menu == "🐶 Cani":
                 
                 st.markdown("---")
                 st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
-                is_gestione_dedicata_new = st.checkbox("Richiede gestione dedicata (es. cani con restrizioni)", key="novo_gest_dedicata")
-                is_gruppo_dedicato_new = st.checkbox("Richiede gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
+                is_cane_chiuso_new = st.checkbox("🔒 Cane chiuso", key="novo_cane_chiuso")
+                is_gruppo_dedicato_new = st.checkbox("👥 Gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
                 
                 btn_salva_nuovo_cane = st.form_submit_button("Salva Cane e Scheda 📝")
                 if btn_salva_nuovo_cane:
@@ -1020,7 +999,7 @@ elif menu == "🐶 Cani":
                             "data_nascita": data_nascita_str,
                             "taglia": taglia_cane,
                             "data_entrata": data_entrata_cane.strftime("%d/%m/%Y"),
-                            "gestione_dedicata": is_gestione_dedicata_new,
+                            "cane_chiuso": is_cane_chiuso_new,
                             "gruppo_dedicato": is_gruppo_dedicato_new
                         }
                         st.session_state.cani_dettagli[nome_pulito] = dettagli_nuovi
@@ -1051,7 +1030,7 @@ elif menu == "🐶 Cani":
             nascita_str = info_d.get("data_nascita", "N/D")
             taglia_str = info_d.get("taglia", "N/D")
             entrata_str = info_d.get("data_entrata", "N/D")
-            is_gest_ded = info_d.get("gestione_dedicata", False)
+            is_chiuso = info_d.get("cane_chiuso", False)
             is_grup_ded = info_d.get("gruppo_dedicato", False)
 
             eta_calcolata = calcola_eta(nascita_str)
@@ -1065,8 +1044,8 @@ elif menu == "🐶 Cani":
                     st.markdown(f"• **In canile dal:** `{entrata_str}`")
                     
                     badges = []
-                    if is_gest_ded:
-                        badges.append("🔒 Gestione dedicata")
+                    if is_chiuso:
+                        badges.append("🔒 Cane chiuso")
                     if is_grup_ded:
                         badges.append("👥 Gruppo dedicato")
                     if badges:
@@ -1155,8 +1134,8 @@ elif menu == "🐶 Cani":
                     
                     st.markdown("---")
                     st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
-                    m_gest_ded = st.checkbox("Richiede gestione dedicata", value=is_gest_ded, key=f"m_gest_{dog}")
-                    m_grup_ded = st.checkbox("Richiede gruppo dedicato", value=is_grup_ded, key=f"m_grup_{dog}")
+                    m_chiuso = st.checkbox("🔒 Cane chiuso", value=is_chiuso, key=f"m_chiuso_{dog}")
+                    m_grup_ded = st.checkbox("👥 Gruppo dedicato", value=is_grup_ded, key=f"m_grup_{dog}")
                     
                     btn_salva_mod_scheda = st.form_submit_button("Salva Modifiche Scheda ✅")
                     if btn_salva_mod_scheda:
@@ -1166,7 +1145,7 @@ elif menu == "🐶 Cani":
                             "data_nascita": nuova_data_nascita_str,
                             "taglia": m_taglia,
                             "data_entrata": m_entrata.strftime("%d/%m/%Y"),
-                            "gestione_dedicata": m_gest_ded,
+                            "cane_chiuso": m_chiuso,
                             "gruppo_dedicato": m_grup_ded
                         }
                         st.session_state.cani_dettagli[dog] = dettagli_aggiornati
@@ -1176,38 +1155,99 @@ elif menu == "🐶 Cani":
                         st.rerun()
 
 elif menu == "👥 Volontari":
-    st.header("Gestione Anagrafica Volontari")
+    st.header("Gestione Anagrafica & Restrizioni Volontari")
 
     if not st.session_state.is_admin:
         st.warning("🔒 Area riservata agli amministratori.")
     else:
-        st.markdown("Visualizza l'elenco dei volontari registrati, rimuovi chi non frequenta più o correggi i nomi.")
+        st.markdown("Aggiungi nuovi volontari o configura i permessi e i divieti sui cani chiusi per ciascun profilo.")
 
-        new_vol = st.text_input("Aggiungi manualmente un volontario:")
-        if st.button("Aggiungi Volontario"):
-            if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
-                st.session_state.volontari_db.append(new_vol.strip())
-                db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
-                st.cache_data.clear()
-                st.success(f"Volontario '{new_vol}' aggiunto con successo!")
-                st.rerun()
-            elif new_vol.strip() in st.session_state.volontari_db:
-                st.warning("Questo volontario è già presente nella lista.")
+        with st.form("form_aggiungi_volontario_admin"):
+            new_vol = st.text_input("Aggiungi manualmente un volontario:")
+            btn_add_vol = st.form_submit_button("Aggiungi Volontario ➕")
+            if btn_add_vol:
+                if new_vol.strip() and new_vol.strip() not in st.session_state.volontari_db:
+                    st.session_state.volontari_db.append(new_vol.strip())
+                    db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                    st.cache_data.clear()
+                    st.success(f"Volontario '{new_vol}' aggiunto con successo!")
+                    st.rerun()
+                elif new_vol.strip() in st.session_state.volontari_db:
+                    st.warning("Questo volontario è già presente nella lista.")
 
-        st.subheader("Lista attuale dei volontari registrati:")
-        for vol in sorted(st.session_state.volontari_db):
-            col_v1, col_v2 = st.columns([4, 1])
-            with col_v1:
-                st.write(f"👤 **{vol}**")
-            with col_v2:
-                with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
-                    st.write(f"Confermi l'eliminazione di {vol}?")
-                    if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
-                        st.session_state.volontari_db.remove(vol)
-                        db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
-                        st.cache_data.clear()
-                        st.success(f"Volontario '{vol}' eliminato.")
-                        st.rerun()
+        st.markdown("---")
+        st.subheader("⚙️ Configurazione Permessi e Divieti per Volontario")
+        
+        volontari_lista = sorted(list(set(st.session_state.volontari_db)))
+        if not volontari_lista:
+            st.info("Nessun volontario registrato.")
+        else:
+            vol_selezionato_perm = st.selectbox("Seleziona volontario da configurare:", volontari_lista, key="sel_vol_permessi")
+            
+            # Ricava tutti i cani che sono marcati come "cane chiuso"
+            cani_chiusi_disponibili = [
+                c for c in st.session_state.cani 
+                if st.session_state.cani_dettagli.get(c, {}).get("cane_chiuso", False)
+            ]
+            
+            permessi_correnti = st.session_state.volontari_permessi.get(vol_selezionato_perm, {})
+            jolly_attuale = permessi_correnti.get("jolly", False)
+            divieti_attuali = [c for c in permessi_correnti.get("divieti", []) if c in cani_chiusi_disponibili]
+            no_giada_attuale = permessi_correnti.get("no_giada", False)
+            
+            with st.form(f"form_permessi_{vol_selezionato_perm}"):
+                st.markdown(f"**Modifica regole per: {vol_selezionato_perm}**")
+                
+                is_jolly = st.checkbox("⭐ Jolly (Può gestire TUTTI i cani senza restrizioni)", value=jolly_attuale)
+                
+                divieti_scelti = st.multiselect(
+                    "❌ Cani chiusi NON consentiti (Divieti):",
+                    options=cani_chiusi_disponibili,
+                    default=divieti_attuali
+                )
+                
+                no_giada_scelto = st.checkbox("👥 Escluso dal gruppo dedicato (es. Giada)", value=no_giada_attuale)
+                
+                btn_salva_permessi = st.form_submit_button("Salva Permessi Volontario 💾")
+                if btn_salva_permessi:
+                    nuovi_dati_permessi = {
+                        "jolly": is_jolly,
+                        "divieti": divieti_scelti,
+                        "no_giada": no_giada_scelto
+                    }
+                    st.session_state.volontari_permessi[vol_selezionato_perm] = nuovi_dati_permessi
+                    salva_su_firestore("volontari_permessi", vol_selezionato_perm, nuovi_dati_permessi)
+                    st.success(f"Permessi aggiornati con successo per {vol_selezionato_perm}!")
+                    st.rerun()
+
+            st.markdown("---")
+            st.subheader("📋 Elenco Completo Volontari")
+            for vol in volontari_lista:
+                col_v1, col_v2 = st.columns([4, 1])
+                with col_v1:
+                    p_vol = st.session_state.volontari_permessi.get(vol, {})
+                    info_stato = []
+                    if p_vol.get("jolly", False) or vol in ["ALEX MATTEO CIRSTEA", "Babi", "Laura C"]:
+                        info_stato.append("⭐ Jolly")
+                    if p_vol.get("divieti"):
+                        info_stato.append(f"Divieti: {', '.join(p_vol['divieti'])}")
+                    if p_vol.get("no_giada", False):
+                        info_stato.append("No Gruppo Dedicato")
+                    
+                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Standard)"
+                    st.write(f"👤 **{vol}**{dettagli_str}")
+                with col_v2:
+                    with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
+                        st.write(f"Confermi l'eliminazione di {vol}?")
+                        if st.button("Sì, elimina", key=f"conf_del_vol_{vol}"):
+                            st.session_state.volontari_db.remove(vol)
+                            db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                            if vol in st.session_state.volontari_permessi:
+                                del st.session_state.volontari_permessi[vol]
+                                elimina_da_firestore("volontari_permessi", vol)
+                            st.cache_data.clear()
+                            st.success(f"Volontario '{vol}' eliminato.")
+                            st.rerun()
 
 elif menu == "🏡 Archivio Cani Adottati":
     st.header("🏡 Archivio Cani Adottati")
@@ -1401,7 +1441,6 @@ elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
                         if not turni_fascia:
                             st.caption("Nessun volontario registrato in questa fascia.")
                         else:
-                        
                             st.markdown("**Volontari presenti:**")
                             for t in turni_fascia:
                                 cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
