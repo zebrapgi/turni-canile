@@ -11,12 +11,12 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=10) per aggirare la cache testarda di iOS
+# Tag aggiornati con versione forzata (?v=11) per aggirare la cache testarda di iOS
 st.markdown(
     """
     <head>
         <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=10">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=11">
     </head>
 """,
     unsafe_allow_html=True,
@@ -135,9 +135,9 @@ if "volontari_permessi" not in st.session_state:
     permessi_caricati = carica_da_firestore_live("volontari_permessi", {})
     if not permessi_caricati:
         permessi_caricati = {
-            "ALEX MATTEO CIRSTEA": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
-            "Babi": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
-            "Laura C": {"cani_chiusi_esclusi": [], "no_gruppo_dedicato": False},
+            "ALEX MATTEO CIRSTEA": {"cani_chiusi_abilitati": [], "cani_gruppo_dedicato_abilitati": []},
+            "Babi": {"cani_chiusi_abilitati": [], "cani_gruppo_dedicato_abilitati": []},
+            "Laura C": {"cani_chiusi_abilitati": [], "cani_gruppo_dedicato_abilitati": []},
         }
     st.session_state.volontari_permessi = permessi_caricati
 
@@ -160,37 +160,37 @@ if "note_turni_db" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
-# --- FUNZIONE DI VALIDAZIONE DINAMICA CON CONTROLLO CUMULATIVO ---
+# --- FUNZIONE DI VALIDAZIONE IN POSITIVO (ABILITAZIONI) ---
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
     permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
-    cani_chiusi_esclusi = permessi_vol.get("cani_chiusi_esclusi", [])
-    no_gruppo_dedicato = permessi_vol.get("no_gruppo_dedicato", False)
+    cani_chiusi_abilitati = permessi_vol.get("cani_chiusi_abilitati", [])
+    cani_gruppo_dedicato_abilitati = permessi_vol.get("cani_gruppo_dedicato_abilitati", [])
     
-    cani_vietati_chiusi = []
-    cani_vietati_gruppo = []
+    cani_non_abilitati_chiusi = []
+    cani_non_abilitati_gruppo = []
     
     for cane in cani_selezionati:
         dettagli_cane = st.session_state.cani_dettagli.get(cane, {})
         is_cane_chiuso = dettagli_cane.get("cane_chiuso", False)
         is_gruppo_dedicato = dettagli_cane.get("gruppo_dedicato", False)
         
-        if is_cane_chiuso and cane in cani_chiusi_esclusi:
-            cani_vietati_chiusi.append(cane)
+        if is_cane_chiuso and cane not in cani_chiusi_abilitati:
+            cani_non_abilitati_chiusi.append(cane)
             
-        if is_gruppo_dedicato and no_gruppo_dedicato:
-            cani_vietati_gruppo.append(cane)
+        if is_gruppo_dedicato and cane not in cani_gruppo_dedicato_abilitati:
+            cani_non_abilitati_gruppo.append(cane)
             
     errori_totali = []
-    if cani_vietati_chiusi:
-        elenco_chiusi = ", ".join(cani_vietati_chiusi)
-        errori_totali.append(f"non sei autorizzato alla gestione dei cani chiusi: `{elenco_chiusi}`")
+    if cani_non_abilitati_chiusi:
+        elenco_chiusi = ", ".join(cani_non_abilitati_chiusi)
+        errori_totali.append(f"non risulti abilitato alla gestione dei cani chiusi: `{elenco_chiusi}`")
         
-    if cani_vietati_gruppo:
-        elenco_gruppo = ", ".join(cani_vietati_gruppo)
-        errori_totali.append(f"non fai parte dei cani con gruppo dedicato per: `{elenco_gruppo}`")
+    if cani_non_abilitati_gruppo:
+        elenco_gruppo = ", ".join(cani_non_abilitati_gruppo)
+        errori_totali.append(f"non risulti abilitato per i cani con gruppo dedicato: `{elenco_gruppo}`")
         
     if errori_totali:
-        messaggio_finale = "⚠️ **Attenzione:** " + " e ".join(errori_totali) + ". Seleziona solo i cani assegnati al tuo profilo."
+        messaggio_finale = "⚠️ **Attenzione:** " + " e ".join(errori_totali) + ". Seleziona solo i cani per cui possiedi l'abilitazione."
         st.error(messaggio_finale)
         return False
             
@@ -1168,12 +1168,12 @@ elif menu == "🐶 Cani":
                         st.rerun()
 
 elif menu == "👥 Volontari":
-    st.header("Gestione Anagrafica & Restrizioni Volontari")
+    st.header("Gestione Anagrafica & Abilitazioni Volontari")
 
     if not st.session_state.is_admin:
         st.warning("🔒 Area riservata agli amministratori.")
     else:
-        st.markdown("Aggiungi nuovi volontari o configura i permessi sui **cani chiusi** e sui **cani con gruppo dedicato** per ciascun profilo.")
+        st.markdown("Aggiungi nuovi volontari o configura le **abilitazioni positive** sui cani chiusi e sui cani con gruppo dedicato per ciascun profilo.")
 
         with st.form("form_aggiungi_volontario_admin"):
             new_vol = st.text_input("Aggiungi manualmente un volontario:")
@@ -1189,7 +1189,7 @@ elif menu == "👥 Volontari":
                     st.warning("Questo volontario è già presente nella lista.")
 
         st.markdown("---")
-        st.subheader("⚙️ Configurazione Permessi per Volontario")
+        st.subheader("⚙️ Configurazione Abilitazioni per Volontario")
         
         volontari_lista = sorted(list(set(st.session_state.volontari_db)))
         if not volontari_lista:
@@ -1201,31 +1201,39 @@ elif menu == "👥 Volontari":
                 c for c in st.session_state.cani 
                 if st.session_state.cani_dettagli.get(c, {}).get("cane_chiuso", False)
             ]
+            cani_gruppo_dedicato_disponibili = [
+                c for c in st.session_state.cani 
+                if st.session_state.cani_dettagli.get(c, {}).get("gruppo_dedicato", False)
+            ]
             
             permessi_correnti = st.session_state.volontari_permessi.get(vol_selezionato_perm, {})
-            cani_chiusi_esclusi_attuali = [c for c in permessi_correnti.get("cani_chiusi_esclusi", []) if c in cani_chiusi_disponibili]
-            no_gruppo_dedicato_attuale = permessi_correnti.get("no_gruppo_dedicato", False)
+            cani_chiusi_abilitati_attuali = [c for c in permessi_correnti.get("cani_chiusi_abilitati", []) if c in cani_chiusi_disponibili]
+            cani_gruppo_abilitati_attuali = [c for c in permessi_correnti.get("cani_gruppo_dedicato_abilitati", []) if c in cani_gruppo_dedicato_disponibili]
             
             with st.form(f"form_permessi_{vol_selezionato_perm}"):
-                st.markdown(f"**Modifica regole per: {vol_selezionato_perm}**")
+                st.markdown(f"**Abilitazioni per: {vol_selezionato_perm}**")
                 
-                cani_chiusi_esclusi_scelti = st.multiselect(
-                    "🔒 Cani chiusi NON accessibili (esclusi):",
+                cani_chiusi_abilitati_scelti = st.multiselect(
+                    "🔒 Cani chiusi ABILITATI alla gestione:",
                     options=cani_chiusi_disponibili,
-                    default=cani_chiusi_esclusi_attuali
+                    default=cani_chiusi_abilitati_attuali
                 )
                 
-                no_gruppo_dedicato_scelto = st.checkbox("👥 Escluso dai cani con gruppo dedicato", value=no_gruppo_dedicato_attuale)
+                cani_gruppo_abilitati_scelti = st.multiselect(
+                    "👥 Cani con gruppo dedicato ABILITATI alla gestione (es. Giada):",
+                    options=cani_gruppo_dedicato_disponibili,
+                    default=cani_gruppo_abilitati_attuali
+                )
                 
-                btn_salva_permessi = st.form_submit_button("Salva Permessi Volontario 💾")
+                btn_salva_permessi = st.form_submit_button("Salva Abilitazioni Volontario 💾")
                 if btn_salva_permessi:
                     nuovi_dati_permessi = {
-                        "cani_chiusi_esclusi": cani_chiusi_esclusi_scelti,
-                        "no_gruppo_dedicato": no_gruppo_dedicato_scelto
+                        "cani_chiusi_abilitati": cani_chiusi_abilitati_scelti,
+                        "cani_gruppo_dedicato_abilitati": cani_gruppo_abilitati_scelti
                     }
                     st.session_state.volontari_permessi[vol_selezionato_perm] = nuovi_dati_permessi
                     salva_su_firestore("volontari_permessi", vol_selezionato_perm, nuovi_dati_permessi)
-                    st.success(f"Permessi aggiornati con successo per {vol_selezionato_perm}!")
+                    st.success(f"Abilitazioni aggiornate con successo per {vol_selezionato_perm}!")
                     st.rerun()
 
             st.markdown("---")
@@ -1235,12 +1243,12 @@ elif menu == "👥 Volontari":
                 with col_v1:
                     p_vol = st.session_state.volontari_permessi.get(vol, {})
                     info_stato = []
-                    if p_vol.get("cani_chiusi_esclusi"):
-                        info_stato.append(f"Cani chiusi esclusi: {', '.join(p_vol['cani_chiusi_esclusi'])}")
-                    if p_vol.get("no_gruppo_dedicato", False):
-                        info_stato.append("Escluso da gruppo dedicato")
+                    if p_vol.get("cani_chiusi_abilitati"):
+                        info_stato.append(f"Cani chiusi abilitati: {', '.join(p_vol['cani_chiusi_abilitati'])}")
+                    if p_vol.get("cani_gruppo_dedicato_abilitati"):
+                        info_stato.append(f"Gruppo dedicato abilitati: {', '.join(p_vol['cani_gruppo_dedicato_abilitati'])}")
                     
-                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Tutti i cani abilitati)"
+                    dettagli_str = f" ({' | '.join(info_stato)})" if info_stato else " (Nessuna abilitazione speciale)"
                     st.write(f"👤 **{vol}**{dettagli_str}")
                 with col_v2:
                     with st.popover("Elimina", key=f"pop_del_vol_{vol}"):
@@ -1766,7 +1774,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                         + differenza_ore,
                                     )
                                     salva_su_firestore(
-                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
+                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpuriferimento]
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
