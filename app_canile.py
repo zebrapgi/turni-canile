@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, time
+ìfrom datetime import datetime, timedelta, time
 import os
 import json
 import pandas as pd
@@ -190,7 +190,8 @@ def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
         errori_totali.append(f"non risulti abilitato per i cani con gruppo dedicato: `{elenco_gruppo}`")
         
     if errori_totali:
-        messaggio_finale = "⚠️ **Attenzione:** " + " e ".join(errori_totali) + ". Seleziona solo i cani per cui possiedi l'abilitazione."
+        messaggio_finale = "⚠️ " + " e ".join(errori_totali) + ". Seleziona solo i cani per cui possiedi l'abilitazione."
+        st.toast(messaggio_finale, icon="🚨")
         st.error(messaggio_finale)
         return False
             
@@ -618,17 +619,25 @@ if menu == "📅 Inserisci":
             errore_fascia = False
             
             if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
-                st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi).")
+                msg = "❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi)."
+                st.toast(msg, icon="🚨")
+                st.error(msg)
                 errore_fascia = True
             elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
-                st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00).")
+                msg = "❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00)."
+                st.toast(msg, icon="🚨")
+                st.error(msg)
                 errore_fascia = True
 
             if not errore_fascia:
                 if not volontario_finale:
-                    st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposita casella in alto prima di registrare.")
+                    msg = "⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome."
+                    st.toast(msg, icon="⚠️")
+                    st.warning(msg)
                 elif not cani_fatti:
-                    st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
+                    msg = "❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!"
+                    st.toast(msg, icon="🚨")
+                    st.error(msg)
                 elif not valida_e_salva_turno(volontario_finale, cani_fatti):
                     pass
                 else:
@@ -649,7 +658,9 @@ if menu == "📅 Inserisci":
                     )
 
                     if doppione_trovato:
-                        st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
+                        msg = f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!"
+                        st.toast(msg, icon="⚠️")
+                        st.error(msg)
                     else:
                         id_turno = str(datetime.now().timestamp())
                         nuovo_turno = {
@@ -736,11 +747,17 @@ if menu == "📅 Inserisci":
 
         if submit_multiplo:
             if not volontario_finale:
-                st.warning("⚠️ Per favore, seleziona il tuo nome in alto prima di registrare.")
+                msg = "⚠️ Per favore, seleziona il tuo nome in alto prima di registrare."
+                st.toast(msg, icon="⚠️")
+                st.warning(msg)
             elif not giorni_scelti_multiplo:
-                st.error("❌ **Errore:** Seleziona almeno un giorno della settimana!")
+                msg = "❌ **Errore:** Seleziona almeno un giorno della settimana!"
+                st.toast(msg, icon="🚨")
+                st.error(msg)
             elif not cani_fatti_multiplo:
-                st.error("❌ **Errore:** Devi selezionare almeno un cane per i turni in blocco!")
+                msg = "❌ **Errore:** Devi selezionare almeno un cane per i turni in blocco!"
+                st.toast(msg, icon="🚨")
+                st.error(msg)
             elif not valida_e_salva_turno(volontario_finale, cani_fatti_multiplo):
                 pass
             else:
@@ -789,7 +806,9 @@ if menu == "📅 Inserisci":
                 if turni_inseriti_count > 0:
                     st.toast(f"Registrati con successo {turni_inseriti_count} turni in blocco!", icon="🎉")
                 if turni_saltati:
-                    st.warning(f"⚠️ Alcuni giorni sono stati saltati perché avevi già un turno registrato in quella fascia: `{', '.join(turni_saltati)}`")
+                    msg_saltati = f"⚠️ Alcuni giorni sono stati saltati perché avevi già un turno registrato in quella fascia: `{', '.join(turni_saltati)}`"
+                    st.toast(msg_saltati, icon="⚠️")
+                    st.warning(msg_saltati)
                 
                 if turni_inseriti_count > 0:
                     st.rerun()
