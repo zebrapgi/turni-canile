@@ -11,9 +11,22 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# Tag aggiornati con versione forzata (?v=11) per aggirare la cache testarda di iOS
+# CSS personalizzato per centrare in primo piano i messaggi di errore/avviso importanti
 st.markdown(
     """
+    <style>
+        /* Forza i banner di errore di Streamlit a comparire al centro in primo piano */
+        .stAlert {
+            position: fixed !important;
+            top: 25% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 999999 !important;
+            width: 80% !important;
+            max-width: 600px !important;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.3) !important;
+        }
+    </style>
     <head>
         <link rel="manifest" href="manifest.json">
         <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=11">
