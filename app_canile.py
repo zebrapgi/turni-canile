@@ -517,108 +517,231 @@ if menu == "📅 Inserisci":
 
     st.markdown("---")
 
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        giorno = st.selectbox(
-            "Giorno della settimana:",
-            [
-                "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
-            ],
-            key="giorno_form_dinamico"
-        )
-    with col_f2:
-        fascia = st.selectbox(
-            "Fascia oraria:", 
-            ["Mattina", "Pomeriggio"], 
-            key="selettore_fascia_form"
-        )
-
-    if fascia == "Mattina":
-        default_inizio = time(8, 30)
-        default_fine = time(12, 0)
-    else:
-        default_inizio = time(14, 30)
-        default_fine = time(18, 0)
-
-    st.markdown("### 🕒 2. Dettagli Turno e Cani")
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(f"**Orario per {fascia}:**")
-
-        col_ora1, col_ora2 = st.columns(2)
-        with col_ora1:
-            ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_dinamica_{fascia}")
-        
-        senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
-
-        with col_ora2:
-            if not senza_fine:
-                ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_dinamica_{fascia}")
-            else:
-                st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
-        
-        if senza_fine:
-            orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
-        else:
-            orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
-
-    cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
-
-    col_cani_op1, col_cani_op2 = st.columns([1, 1])
-    with col_cani_op1:
-        seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
-    with col_cani_op2:
-        if cani_suggeriti:
-            st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
-
-    if seleziona_tutti:
-        cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
-            st.session_state.cani,
-            default=st.session_state.cani,
-            key="multiselect_cani_tutti"
-        )
-    elif cani_suggeriti:
-        cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
-            st.session_state.cani,
-            default=cani_suggeriti,
-            key="multiselect_cani_sugg"
-        )
-    else:
-        cani_fatti = st.multiselect(
-            "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):", 
-            st.session_state.cani,
-            key="multiselect_cani_vuoto"
-        )
-
-    st.markdown("### 💬 3. Nota o Avviso Personale (Opzionale)")
-    nota_personale_input = st.text_area(
-        "Se vuoi avvisare di qualcosa per questo turno (es. arrivo in ritardo, esigenze particolari):",
-        placeholder="Scrivi qui eventuali note...",
-        key="input_nota_personale_form"
+    # --- SELETTORE MODALITÀ: SINGOLO O MULTIPLO ---
+    modalita_inserimento = st.radio(
+        "Modalità di inserimento:",
+        ["Turno Singolo", "Inserimento Multiplo (Più giorni in un colpo)"],
+        horizontal=True,
+        key="radio_modalita_inserimento"
     )
 
-    submit_button = st.button(label="Registra Turno 🚀", key="btn_submit_turno")
+    st.markdown("---")
 
-    if submit_button:
-        ora_limite_divisione = time(14, 0)
-        errore_fascia = False
+    if modalita_inserimento == "Turno Singolo":
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            giorno = st.selectbox(
+                "Giorno della settimana:",
+                [
+                    "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
+                ],
+                key="giorno_form_dinamico"
+            )
+        with col_f2:
+            fascia = st.selectbox(
+                "Fascia oraria:", 
+                ["Mattina", "Pomeriggio"], 
+                key="selettore_fascia_form"
+            )
+
+        if fascia == "Mattina":
+            default_inizio = time(8, 30)
+            default_fine = time(12, 0)
+        else:
+            default_inizio = time(14, 30)
+            default_fine = time(18, 0)
+
+        st.markdown("### 🕒 2. Dettagli Turno e Cani")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown(f"**Orario per {fascia}:**")
+
+            col_ora1, col_ora2 = st.columns(2)
+            with col_ora1:
+                ora_inizio = st.time_input("Da:", value=default_inizio, key=f"ora_inizio_dinamica_{fascia}")
+            
+            senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
+
+            with col_ora2:
+                if not senza_fine:
+                    ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_dinamica_{fascia}")
+                else:
+                    st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
+            
+            if senza_fine:
+                orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
+            else:
+                orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
+
+        cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
+
+        col_cani_op1, col_cani_op2 = st.columns([1, 1])
+        with col_cani_op1:
+            seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
+        with col_cani_op2:
+            if cani_suggeriti:
+                st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
+
+        if seleziona_tutti:
+            cani_fatti = st.multiselect(
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
+                st.session_state.cani,
+                default=st.session_state.cani,
+                key="multiselect_cani_tutti"
+            )
+        elif cani_suggeriti:
+            cani_fatti = st.multiselect(
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
+                st.session_state.cani,
+                default=cani_suggeriti,
+                key="multiselect_cani_sugg"
+            )
+        else:
+            cani_fatti = st.multiselect(
+                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):", 
+                st.session_state.cani,
+                key="multiselect_cani_vuoto"
+            )
+
+        st.markdown("### 💬 3. Nota o Avviso Personale (Opzionale)")
+        nota_personale_input = st.text_area(
+            "Se vuoi avvisare di qualcosa per questo turno (es. arrivo in ritardo, esigenze particolari):",
+            placeholder="Scrivi qui eventuali note...",
+            key="input_nota_personale_form"
+        )
+
+        submit_button = st.button(label="Registra Turno 🚀", key="btn_submit_turno")
+
+        if submit_button:
+            ora_limite_divisione = time(14, 0)
+            errore_fascia = False
+            
+            if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
+                st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi).")
+                errore_fascia = True
+            elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
+                st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00).")
+                errore_fascia = True
+
+            if not errore_fascia:
+                if not volontario_finale:
+                    st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposita casella in alto prima di registrare.")
+                elif not cani_fatti:
+                    st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
+                elif not valida_e_salva_turno(volontario_finale, cani_fatti):
+                    pass
+                else:
+                    if volontario_finale not in st.session_state.volontari_db:
+                        st.session_state.volontari_db.append(volontario_finale)
+                        db.collection("volontari").document("lista").set({"elementi": st.session_state.volontari_db})
+                        st.cache_data.clear()
+
+                    lista_turni = carica_turni_normalizzati()
+                    
+                    volontario_normalizzato = volontario_finale.strip().lower()
+                    doppione_trovato = any(
+                        t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                        t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
+                        t.get("giorno") == giorno and
+                        t.get("fascia") == fascia
+                        for t in lista_turni
+                    )
+
+                    if doppione_trovato:
+                        st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
+                    else:
+                        id_turno = str(datetime.now().timestamp())
+                        nuovo_turno = {
+                            "id": id_turno,
+                            "settimana": settimana_scelta_label,
+                            "settimana_chiave": settimana_scelta_chiave,
+                            "volontario": volontario_finale,
+                            "giorno": giorno,
+                            "fascia": fascia,
+                            "orario": orario,
+                            "cani_fatti": cani_fatti,
+                            "note": nota_personale_input.strip(),
+                        }
+                        try:
+                            db.collection("turni").document(id_turno).set(nuovo_turno)
+                            st.cache_data.clear()
+                            st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
+
+    else:
+        # --- MODALITÀ INSERIMENTO MULTIPLO ---
+        st.markdown("### 📅 Seleziona i giorni della settimana")
+        tutti_i_giorni = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
         
-        if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
-            st.error("❌ **Errore:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 14:00 in poi).")
-            errore_fascia = True
-        elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
-            st.error("❌ **Errore:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 14:00).")
-            errore_fascia = True
+        giorni_scelti_multiplo = []
+        cols_giorni = st.columns(4)
+        for idx_g, g_item in enumerate(tutti_i_giorni):
+            with cols_giorni[idx_g % 4]:
+                if st.checkbox(g_item, key=f"chk_multiplo_{g_item}"):
+                    giorni_scelti_multiplo.append(g_item)
 
-        if not errore_fascia:
+        col_f1_m, col_f2_m = st.columns(2)
+        with col_f1_m:
+            fascia_multiplo = st.selectbox(
+                "Fascia oraria comune:", 
+                ["Mattina", "Pomeriggio"], 
+                key="selettore_fascia_multiplo"
+            )
+
+        if fascia_multiplo == "Mattina":
+            def_i_m = time(8, 30)
+            def_f_m = time(12, 0)
+        else:
+            def_i_m = time(14, 30)
+            def_f_m = time(18, 0)
+
+        st.markdown("### 🕒 Dettagli Orario e Cani Comuni")
+        col_m1, col_m2 = st.columns(2)
+
+        with col_m1:
+            st.markdown(f"**Orario per {fascia_multiplo}:**")
+            col_ora1_m, col_ora2_m = st.columns(2)
+            with col_ora1_m:
+                ora_inizio_m = st.time_input("Da:", value=def_i_m, key="ora_inizio_multiplo")
+            
+            senza_fine_m = st.checkbox("Senza orario di fine", key="senza_fine_multiplo")
+
+            with col_ora2_m:
+                if not senza_fine_m:
+                    ora_fine_m = st.time_input("A:", value=def_f_m, key="ora_fine_multiplo")
+                else:
+                    st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
+            
+            if senza_fine_m:
+                orario_multiplo = f"Dalle {ora_inizio_m.strftime('%H:%M')}"
+            else:
+                orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
+
+        cani_fatti_multiplo = st.multiselect(
+            "✅ Cani gestiti in questi turni:", 
+            st.session_state.cani,
+            key="multiselect_cani_multiplo"
+        )
+
+        nota_multiplo_input = st.text_area(
+            "Nota comune per i turni (Opzionale):",
+            placeholder="Scrivi qui eventuali note...",
+            key="input_nota_multiplo"
+        )
+
+        submit_multiplo = st.button(label="Registra Tutti i Turni in Blocco 🚀", key="btn_submit_multiplo")
+
+        if submit_multiplo:
             if not volontario_finale:
-                st.warning("⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome nell'apposita casella in alto prima di registrare.")
-            elif not cani_fatti:
-                st.error("❌ **Errore:** Devi selezionare almeno un cane per poter registrare il turno!")
-            elif not valida_e_salva_turno(volontario_finale, cani_fatti):
+                st.warning("⚠️ Per favore, seleziona il tuo nome in alto prima di registrare.")
+            elif not giorni_scelti_multiplo:
+                st.error("❌ **Errore:** Seleziona almeno un giorno della settimana!")
+            elif not cani_fatti_multiplo:
+                st.error("❌ **Errore:** Devi selezionare almeno un cane per i turni in blocco!")
+            elif not valida_e_salva_turno(volontario_finale, cani_fatti_multiplo):
                 pass
             else:
                 if volontario_finale not in st.session_state.volontari_db:
@@ -627,38 +750,49 @@ if menu == "📅 Inserisci":
                     st.cache_data.clear()
 
                 lista_turni = carica_turni_normalizzati()
-                
                 volontario_normalizzato = volontario_finale.strip().lower()
-                doppione_trovato = any(
-                    t.get("volontario", "").strip().lower() == volontario_normalizzato and
-                    t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
-                    t.get("giorno") == giorno and
-                    t.get("fascia") == fascia
-                    for t in lista_turni
-                )
+                
+                turni_inseriti_count = 0
+                turni_saltati = []
 
-                if doppione_trovato:
-                    st.error(f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!")
-                else:
-                    id_turno = str(datetime.now().timestamp())
-                    nuovo_turno = {
-                        "id": id_turno,
-                        "settimana": settimana_scelta_label,
-                        "settimana_chiave": settimana_scelta_chiave,
-                        "volontario": volontario_finale,
-                        "giorno": giorno,
-                        "fascia": fascia,
-                        "orario": orario,
-                        "cani_fatti": cani_fatti,
-                        "note": nota_personale_input.strip(),
-                    }
-                    try:
-                        db.collection("turni").document(id_turno).set(nuovo_turno)
-                        st.cache_data.clear()
-                        st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
+                for giorno_m in giorni_scelti_multiplo:
+                    doppione = any(
+                        t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                        t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
+                        t.get("giorno") == giorno_m and
+                        t.get("fascia") == fascia_multiplo
+                        for t in lista_turni
+                    )
+
+                    if doppione:
+                        turni_saltati.append(giorno_m)
+                    else:
+                        id_turno = str(datetime.now().timestamp()) + f"_{giorno_m[:3]}"
+                        nuovo_turno = {
+                            "id": id_turno,
+                            "settimana": settimana_scelta_label,
+                            "settimana_chiave": settimana_scelta_chiave,
+                            "volontario": volontario_finale,
+                            "giorno": giorno_m,
+                            "fascia": fascia_multiplo,
+                            "orario": orario_multiplo,
+                            "cani_fatti": cani_fatti_multiplo,
+                            "note": nota_multiplo_input.strip(),
+                        }
+                        try:
+                            db.collection("turni").document(id_turno).set(nuovo_turno)
+                            turni_inseriti_count += 1
+                        except Exception as e:
+                            st.error(f"Errore su {giorno_m}: {e}")
+
+                st.cache_data.clear()
+                if turni_inseriti_count > 0:
+                    st.toast(f"Registrati con successo {turni_inseriti_count} turni in blocco!", icon="🎉")
+                if turni_saltati:
+                    st.warning(f"⚠️ Alcuni giorni sono stati saltati perché avevi già un turno registrato in quella fascia: `{', '.join(turni_saltati)}`")
+                
+                if turni_inseriti_count > 0:
+                    st.rerun()
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
