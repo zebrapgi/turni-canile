@@ -866,7 +866,7 @@ elif menu == "👀 Panoramica":
 
     if st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari":
         vol_scelto = st.session_state["filtro_vol_side"]
-        turni_filtrati = [t for t in turni_filtrati if t.get("volontario"] == vol_scelto]
+        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == vol_scelto]
         st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
     if not turni_filtrati:
