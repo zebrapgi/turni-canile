@@ -11,20 +11,23 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# CSS personalizzato per centrare in primo piano i messaggi di errore/avviso importanti
+# CSS personalizzato per posizionare l'avviso centrale in primo piano (stile modale)
 st.markdown(
     """
     <style>
-        /* Forza i banner di errore di Streamlit a comparire al centro in primo piano */
-        .stAlert {
+        /* Nasconde il vecchio banner standard se presente in alto e trasforma l'avviso del giorno in un modale centrale */
+        div[data-testid="stExpander"]:has(summary span:contains("Avviso del Giorno")) {
             position: fixed !important;
             top: 25% !important;
             left: 50% !important;
             transform: translate(-50%, -50%) !important;
             z-index: 999999 !important;
-            width: 80% !important;
+            width: 85% !important;
             max-width: 600px !important;
-            box-shadow: 0px 10px 30px rgba(0,0,0,0.3) !important;
+            box-shadow: 0px 15px 40px rgba(0,0,0,0.4) !important;
+            background-color: white !important;
+            border-radius: 12px !important;
+            border: 2px solid #ff4b4b !important;
         }
     </style>
     <head>
@@ -439,8 +442,9 @@ with st.container():
             if d_ent_date <= data_oggi_date:
                 cani_scoperti_oggi.append(c)
 
+    # Avviso unico centrale, in primo piano e chiuso automaticamente espandendolo o comprimendolo
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
-        with st.expander("🔔 Avviso del Giorno", expanded=True):
+        with st.expander("🔔 Avviso del Giorno (Clicca per chiudere/aprire)", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
 
 # --- MENU PRINCIPALE (DINAMICO PER ADMIN / VOLONTARI) ---
@@ -862,7 +866,7 @@ elif menu == "👀 Panoramica":
 
     if st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari":
         vol_scelto = st.session_state["filtro_vol_side"]
-        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == vol_scelto]
+        turni_filtrati = [t for t in turni_filtrati if t.get("volontario"] == vol_scelto]
         st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
     if not turni_filtrati:
