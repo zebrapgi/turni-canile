@@ -1857,7 +1857,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ][“ore_fatte”] = max(
+                                ]["ore_fatte"] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
@@ -1927,7 +1927,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                                         + differenza_ore,
                                     )
                                     salva_su_firestore(
-                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpuriferimento]
+                                        "lpu_data", nome_lpu_riferimento, st.session_state.lpu_data[nome_lpu_riferimento]
                                     )
 
                                 turno_gen_esistente = carica_da_firestore_live("turni", [])
