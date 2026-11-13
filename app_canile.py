@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# CSS personalizzato per posizionare l'avviso centrale in primo piano (stile modalle)
+# CSS personalizzato per posizionare l'avviso centrale in primo piano (stile modale)
 st.markdown(
     """
     <style>
@@ -601,25 +601,29 @@ if menu == "📅 Inserisci":
             if cani_suggeriti:
                 st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
 
+        # --- MODIFICA ST.PILLS ---
         if seleziona_tutti:
-            cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
-                st.session_state.cani,
+            cani_fatti = st.pills(
+                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):",
+                options=st.session_state.cani,
                 default=st.session_state.cani,
-                key="multiselect_cani_tutti"
+                selection_mode="multi",
+                key="pills_cani_tutti"
             )
         elif cani_suggeriti:
-            cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):",
-                st.session_state.cani,
+            cani_fatti = st.pills(
+                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):",
+                options=st.session_state.cani,
                 default=cani_suggeriti,
-                key="multiselect_cani_sugg"
+                selection_mode="multi",
+                key="pills_cani_sugg"
             )
         else:
-            cani_fatti = st.multiselect(
-                "✅ Cani che sei autorizzato a gestire (obbligatorio selezionarne almeno uno):", 
-                st.session_state.cani,
-                key="multiselect_cani_vuoto"
+            cani_fatti = st.pills(
+                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):", 
+                options=st.session_state.cani,
+                selection_mode="multi",
+                key="pills_cani_vuoto"
             )
 
         st.markdown("### 💬 3. Nota o Avviso Personale (Opzionale)")
@@ -748,10 +752,12 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        cani_fatti_multiplo = st.multiselect(
+        # --- MODIFICA ST.PILLS ---
+        cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
-            st.session_state.cani,
-            key="multiselect_cani_multiplo"
+            options=st.session_state.cani,
+            selection_mode="multi",
+            key="pills_cani_multiplo"
         )
 
         nota_multiplo_input = st.text_area(
@@ -1081,10 +1087,12 @@ elif menu == "👀 Panoramica":
                                             
                                             nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
                                             
-                                            nuovi_cani = st.multiselect(
+                                            # --- MODIFICA ST.PILLS ---
+                                            nuovi_cani = st.pills(
                                                 "Cani gestiti:",
-                                                st.session_state.cani,
+                                                options=st.session_state.cani,
                                                 default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
+                                                selection_mode="multi",
                                                 key=f"cani_mod_{t['id']}"
                                             )
                                             
@@ -1385,16 +1393,21 @@ elif menu == "👥 Volontari":
             with st.form(f"form_permessi_{vol_selezionato_perm}"):
                 st.markdown(f"**Abilitazioni per: {vol_selezionato_perm}**")
                 
-                cani_chiusi_abilitati_scelti = st.multiselect(
+                # --- MODIFICA ST.PILLS ---
+                cani_chiusi_abilitati_scelti = st.pills(
                     "🔒 Cani chiusi ABILITATI alla gestione:",
                     options=cani_chiusi_disponibili,
-                    default=cani_chiusi_abilitati_attuali
+                    default=cani_chiusi_abilitati_attuali,
+                    selection_mode="multi",
+                    key=f"pills_chiusi_{vol_selezionato_perm}"
                 )
                 
-                cani_gruppo_abilitati_scelti = st.multiselect(
+                cani_gruppo_abilitati_scelti = st.pills(
                     "👥 Cani con gruppo dedicato ABILITATI alla gestione (es. Giada):",
                     options=cani_gruppo_dedicato_disponibili,
-                    default=cani_gruppo_abilitati_attuali
+                    default=cani_gruppo_abilitati_attuali,
+                    selection_mode="multi",
+                    key=f"pills_gruppi_{vol_selezionato_perm}"
                 )
                 
                 btn_salva_permessi = st.form_submit_button("Salva Abilitazioni Volontario 💾")
