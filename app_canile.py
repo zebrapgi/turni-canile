@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# CSS personalizzato per posizionare l'avviso centrale in primo piano (stile modale)
+# CSS personalizzato per posizionare l'avviso centrale in primo piano (stile modalle)
 st.markdown(
     """
     <style>
