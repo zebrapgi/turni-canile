@@ -149,11 +149,21 @@ if "note_turni_db" not in st.session_state:
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
+# --- FUNZIONE DI SUPPORTO PER RECUPERO PERMESSI ROBUSTO (CASE-INSENSITIVE) ---
+def ottieni_permessi_volontario(volontario):
+    if not volontario:
+        return {}
+    vol_lower = volontario.strip().lower()
+    for k, v in st.session_state.volontari_permessi.items():
+        if k.strip().lower() == vol_lower:
+            return v
+    return {}
+
 # --- FUNZIONE DI VALIDAZIONE IN POSITIVO (ABILITAZIONI) ---
 def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
-    permessi_vol = st.session_state.volontari_permessi.get(volontario_selezionato, {})
-    cani_chiusi_abilitati = permessi_vol.get("cani_chiusi_abilitati", [])
-    cani_gruppo_dedicato_abilitati = permessi_vol.get("cani_gruppo_dedicato_abilitati", [])
+    permessi_vol = ottieni_permessi_volontario(volontario_selezionato)
+    cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol.get("cani_chiusi_abilitati", [])]
+    cani_gruppo_dedicato_abilitati = [c.strip().lower() for c in permessi_vol.get("cani_gruppo_dedicato_abilitati", [])]
     
     cani_non_abilitati_chiusi = []
     cani_non_abilitati_gruppo = []
@@ -162,11 +172,12 @@ def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
         dettagli_cane = st.session_state.cani_dettagli.get(cane, {})
         is_cane_chiuso = dettagli_cane.get("cane_chiuso", False)
         is_gruppo_dedicato = dettagli_cane.get("gruppo_dedicato", False)
+        cane_lower = cane.strip().lower()
         
-        if is_cane_chiuso and cane not in cani_chiusi_abilitati:
+        if is_cane_chiuso and cane_lower not in cani_chiusi_abilitati:
             cani_non_abilitati_chiusi.append(cane)
             
-        if is_gruppo_dedicato and cane not in cani_gruppo_dedicato_abilitati:
+        if is_gruppo_dedicato and cane_lower not in cani_gruppo_dedicato_abilitati:
             cani_non_abilitati_gruppo.append(cane)
             
     errori_totali = []
@@ -547,20 +558,21 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI ---
-        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
-        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
-        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI (ROBUSTA) ---
+        permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
+        cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
+        cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
         
         cani_abilitati_utente = []
         for c in st.session_state.cani:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
             is_chiuso = dettagli_c.get("cane_chiuso", False)
             is_gruppo = dettagli_c.get("gruppo_dedicato", False)
+            c_lower = c.strip().lower()
             
-            if is_chiuso and c not in cani_chiusi_abilitati:
+            if is_chiuso and c_lower not in cani_chiusi_abilitati:
                 continue
-            if is_gruppo and c not in cani_gruppo_abilitati:
+            if is_gruppo and c_lower not in cani_gruppo_abilitati:
                 continue
                 
             cani_abilitati_utente.append(c)
@@ -592,9 +604,10 @@ if menu == "📅 Inserisci":
         cani_non_autorizzati_selezionati = []
         for c in cani_fatti:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
-            if dettagli_c.get("cane_chiuso", False) and c not in cani_chiusi_abilitati:
+            c_lower = c.strip().lower()
+            if dettagli_c.get("cane_chiuso", False) and c_lower not in cani_chiusi_abilitati:
                 cani_non_autorizzati_selezionati.append(c)
-            elif dettagli_c.get("gruppo_dedicato", False) and c not in cani_gruppo_abilitati:
+            elif dettagli_c.get("gruppo_dedicato", False) and c_lower not in cani_gruppo_abilitati:
                 cani_non_autorizzati_selezionati.append(c)
 
         if cani_non_autorizzati_selezionati:
@@ -725,19 +738,20 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO ---
-        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
-        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
-        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO (ROBUSTA) ---
+        permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
+        cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
+        cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
         
         cani_abilitati_utente_m = []
         for c in st.session_state.cani:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
             is_chiuso = dettagli_c.get("cane_chiuso", False)
             is_gruppo = dettagli_c.get("gruppo_dedicato", False)
-            if is_chiuso and c not in cani_chiusi_abilitati:
+            c_lower = c.strip().lower()
+            if is_chiuso and c_lower not in cani_chiusi_abilitati:
                 continue
-            if is_gruppo and c not in cani_gruppo_abilitati:
+            if is_gruppo and c_lower not in cani_gruppo_abilitati:
                 continue
             cani_abilitati_utente_m.append(c)
 
@@ -753,9 +767,10 @@ if menu == "📅 Inserisci":
         cani_non_autorizzati_multiplo = []
         for c in cani_fatti_multiplo:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
-            if dettagli_c.get("cane_chiuso", False) and c not in cani_chiusi_abilitati:
+            c_lower = c.strip().lower()
+            if dettagli_c.get("cane_chiuso", False) and c_lower not in cani_chiusi_abilitati:
                 cani_non_autorizzati_multiplo.append(c)
-            elif dettagli_c.get("gruppo_dedicato", False) and c not in cani_gruppo_abilitati:
+            elif dettagli_c.get("gruppo_dedicato", False) and c_lower not in cani_gruppo_abilitati:
                 cani_non_autorizzati_multiplo.append(c)
 
         if cani_non_autorizzati_multiplo:
@@ -1398,7 +1413,7 @@ elif menu == "👥 Volontari":
                 if st.session_state.cani_dettagli.get(c, {}).get("gruppo_dedicato", False)
             ]
             
-            permessi_correnti = st.session_state.volontari_permessi.get(vol_selezionato_perm, {})
+            permessi_correnti = ottieni_permessi_volontario(vol_selezionato_perm)
             cani_chiusi_abilitati_attuali = [c for c in permessi_correnti.get("cani_chiusi_abilitati", []) if c in cani_chiusi_disponibili]
             cani_gruppo_abilitati_attuali = [c for c in permessi_correnti.get("cani_gruppo_dedicato_abilitati", []) if c in cani_gruppo_dedicato_disponibili]
             
@@ -1437,7 +1452,7 @@ elif menu == "👥 Volontari":
             for vol in volontari_lista:
                 col_v1, col_v2 = st.columns([4, 1])
                 with col_v1:
-                    p_vol = st.session_state.volontari_permessi.get(vol, {})
+                    p_vol = ottieni_permessi_volontario(vol)
                     info_stato = []
                     if p_vol.get("cani_chiusi_abilitati"):
                         info_stato.append(f"Cani chiusi abilitati: {', '.join(p_vol['cani_chiusi_abilitati'])}")
