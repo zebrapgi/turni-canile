@@ -11,30 +11,26 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# --- LOGICA TEMI GRAFICI (ATTIVABILI SOLO DA ADMIN) ---
+# --- LOGICA TEMI GRAFICI STAGIONALI (ATTIVABILI SOLO DA ADMIN) ---
 def get_stile_admin():
     sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico (Nessun tema)")
     
-    # Se è disattivato o automatico senza forzature, nessun tema visivo
-    if "Automatico" in sim_tema:
-        return {"bordo": "#cccccc", "attivo": False}
-        
     if "Natale" in sim_tema:
-        return {"bordo": "#b22222", "sfondo_card": "#fff5f5", "attivo": True} # Bordeaux Natale
+        return {"bordo": "#b22222", "sfondo": "#fff5f5", "attivo": True} # Bordeaux Natale
     if "Inverno" in sim_tema:
-        return {"bordo": "#4682b4", "sfondo_card": "#f0f8ff", "attivo": True} # Blu ghiaccio
+        return {"bordo": "#4682b4", "sfondo": "#f0f8ff", "attivo": True} # Blu ghiaccio
     if "Primavera" in sim_tema:
-        return {"bordo": "#4caf50", "sfondo_card": "#f4fff4", "attivo": True} # Verde tenero
+        return {"bordo": "#4caf50", "sfondo": "#f4fff4", "attivo": True} # Verde tenero
     if "Estate" in sim_tema:
-        return {"bordo": "#ff8c00", "sfondo_card": "#fffaf0", "attivo": True} # Arancio solare
+        return {"bordo": "#ff8c00", "sfondo": "#fffaf0", "attivo": True} # Arancio solare
     if "Autunno" in sim_tema:
-        return {"bordo": "#d2691e", "sfondo_card": "#fffaf5", "attivo": True} # Marrone autunnale
+        return {"bordo": "#d2691e", "sfondo": "#fffaf5", "attivo": True} # Marrone autunnale
         
-    return {"bordo": "#cccccc", "attivo": False}
+    return {"bordo": "rgba(49, 51, 63, 0.2)", "sfondo": "transparent", "attivo": False}
 
 stile_admin = get_stile_admin()
 
-# CSS pulito per applicare il tema visivo solo se attivato dall'admin (senza banner o scritte)
+# CSS mirato ed efficace per colorare i container e le schede quando il tema è attivo
 st.markdown(
     f"""
     <style>
@@ -52,10 +48,13 @@ st.markdown(
             border-radius: 12px !important;
             border: 2px solid {stile_admin['bordo']} !important;
         }}
-        /* Colorazione pulita dei bordi delle schede quando il tema admin è attivo */
-        div[data-testid="stVerticalBlock"] div[data-testid="stContainer"] {{
-            border-color: {stile_admin['bordo']} !important;
-            {'background-color: ' + stile_admin['sfondo_card'] + ' !important;' if stile_admin['attivo'] else ''}
+        
+        /* Stile mirato per i container (schede giorno/fascia e box principali) */
+        div[data-testid="stContainer"] {{
+            border: 2px solid {stile_admin['bordo']} !important;
+            border-radius: 8px !important;
+            {'background-color: ' + stile_admin['sfondo'] + ' !important;' if stile_admin['attivo'] else ''}
+            padding: 10px !important;
         }}
     </style>
     <head>
@@ -453,7 +452,7 @@ with st.sidebar:
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- INTESTAZIONE PRINCIPALE PULITA (SENZA BANNER) ---
+# --- INTESTAZIONE PRINCIPALE PULITA ---
 st.title("🐾 Turni Canile")
 
 with st.container():
@@ -1927,7 +1926,7 @@ elif menu == "🛠️ Gestione LPU (Admin)":
                             if nome_lpu_riferimento in st.session_state.lpu_data:
                                 st.session_state.lpu_data[
                                     nome_lpu_riferimento
-                                ][vid_ore_fatte] = max(
+                                ]["ore_fatte"] = max(
                                     0.0,
                                     st.session_state.lpu_data[
                                         nome_lpu_riferimento
