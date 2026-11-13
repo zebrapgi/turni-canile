@@ -558,7 +558,7 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI (ROBUSTA) ---
+        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI ( CORRETTA & INCLUSIVA ) ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
         cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
         cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
@@ -570,18 +570,26 @@ if menu == "📅 Inserisci":
             is_gruppo = dettagli_c.get("gruppo_dedicato", False)
             c_lower = c.strip().lower()
             
-            if is_chiuso and c_lower not in cani_chiusi_abilitati:
-                continue
-            if is_gruppo and c_lower not in cani_gruppo_abilitati:
+            # Se il cane non ha restrizioni speciali, viene incluso sempre
+            if not is_chiuso and not is_gruppo:
+                cani_abilitati_utente.append(c)
                 continue
                 
-            cani_abilitati_utente.append(c)
+            # Se è un cane chiuso, viene incluso se il volontario ha l'abilitazione
+            if is_chiuso and c_lower in cani_chiusi_abilitati:
+                cani_abilitati_utente.append(c)
+                continue
+                
+            # Se è un cane a gruppo dedicato, viene incluso se il volontario ha l'abilitazione
+            if is_gruppo and c_lower in cani_gruppo_abilitati:
+                cani_abilitati_utente.append(c)
+                continue
 
         col_cani_op1, col_cani_op2 = st.columns([1, 1])
         with col_cani_op1:
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
         with col_cani_op2:
-            st.caption("💡 Ti ho preselezionato i cani per cui sei abilitato.")
+            st.caption("💡 Ti ho preselezionato i cani normali più quelli speciali per cui sei abilitato.")
 
         if seleziona_tutti:
             cani_fatti = st.pills(
@@ -738,7 +746,7 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO (ROBUSTA) ---
+        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO ( CORRETTA & INCLUSIVA ) ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
         cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
         cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
@@ -749,11 +757,16 @@ if menu == "📅 Inserisci":
             is_chiuso = dettagli_c.get("cane_chiuso", False)
             is_gruppo = dettagli_c.get("gruppo_dedicato", False)
             c_lower = c.strip().lower()
-            if is_chiuso and c_lower not in cani_chiusi_abilitati:
+            
+            if not is_chiuso and not is_gruppo:
+                cani_abilitati_utente_m.append(c)
                 continue
-            if is_gruppo and c_lower not in cani_gruppo_abilitati:
+            if is_chiuso and c_lower in cani_chiusi_abilitati:
+                cani_abilitati_utente_m.append(c)
                 continue
-            cani_abilitati_utente_m.append(c)
+            if is_gruppo and c_lower in cani_gruppo_abilitati:
+                cani_abilitati_utente_m.append(c)
+                continue
 
         cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
