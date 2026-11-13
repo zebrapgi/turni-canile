@@ -11,59 +11,9 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# --- LOGICA TEMI GRAFICI STAGIONALI (ATTIVABILI SOLO DA ADMIN) ---
-def get_stile_admin():
-    sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico (Nessun tema)")
-    
-    if "Natale" in sim_tema:
-        return {"bordo": "#b22222", "sfondo": "#fff5f5", "attivo": True} # Bordeaux Natale
-    if "Inverno" in sim_tema:
-        return {"bordo": "#4682b4", "sfondo": "#f0f8ff", "attivo": True} # Blu ghiaccio
-    if "Primavera" in sim_tema:
-        return {"bordo": "#4caf50", "sfondo": "#f4fff4", "attivo": True} # Verde tenero
-    if "Estate" in sim_tema:
-        return {"bordo": "#ff8c00", "sfondo": "#fffaf0", "attivo": True} # Arancio solare
-    if "Autunno" in sim_tema:
-        return {"bordo": "#d2691e", "sfondo": "#fffaf5", "attivo": True} # Marrone autunnale
-        
-    return {"bordo": "rgba(49, 51, 63, 0.2)", "sfondo": "transparent", "attivo": False}
-
-stile_admin = get_stile_admin()
-
-# CSS mirato ed efficace per colorare i container e le schede quando il tema è attivo
-st.markdown(
-    f"""
-    <style>
-        /* Modale avviso del giorno */
-        div[data-testid="stExpander"]:has(summary span:contains("Avviso del Giorno")) {{
-            position: fixed !important;
-            top: 25% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            z-index: 999999 !important;
-            width: 85% !important;
-            max-width: 600px !important;
-            box-shadow: 0px 15px 40px rgba(0,0,0,0.4) !important;
-            background-color: white !important;
-            border-radius: 12px !important;
-            border: 2px solid {stile_admin['bordo']} !important;
-        }}
-        
-        /* Stile mirato per i container (schede giorno/fascia e box principali) */
-        div[data-testid="stContainer"] {{
-            border: 2px solid {stile_admin['bordo']} !important;
-            border-radius: 8px !important;
-            {'background-color: ' + stile_admin['sfondo'] + ' !important;' if stile_admin['attivo'] else ''}
-            padding: 10px !important;
-        }}
-    </style>
-    <head>
-        <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=11">
-    </head>
-""",
-    unsafe_allow_html=True,
-)
+# --- INIZIALIZZAZIONE SICURA STATO TEMA ---
+if "simulazione_tema" not in st.session_state:
+    st.session_state.simulazione_tema = "📅 Automatico (Nessun tema)"
 
 # --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA (TOML Nativo) ---
 if not firebase_admin._apps:
@@ -356,6 +306,59 @@ def carica_turni_normalizzati():
 with st.sidebar:
     if os.path.exists("icona.jpg"):
         st.image("icona.jpg", width=80)
+        # --- LOGICA APPLICAZIONE DINAMICA TEMI GRAFICI ADMIN ---
+def get_stile_admin():
+    sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico (Nessun tema)")
+    
+    if "Natale" in sim_tema:
+        return {"bordo": "#b22222", "sfondo": "#fff5f5", "attivo": True}
+    if "Inverno" in sim_tema:
+        return {"bordo": "#4682b4", "sfondo": "#f0f8ff", "attivo": True}
+    if "Primavera" in sim_tema:
+        return {"bordo": "#4caf50", "sfondo": "#f4fff4", "attivo": True}
+    if "Estate" in sim_tema:
+        return {"bordo": "#ff8c00", "sfondo": "#fffaf0", "attivo": True}
+    if "Autunno" in sim_tema:
+        return {"bordo": "#d2691e", "sfondo": "#fffaf5", "attivo": True}
+        
+    return {"bordo": "rgba(49, 51, 63, 0.2)", "sfondo": "transparent", "attivo": False}
+
+stile_admin = get_stile_admin()
+
+# CSS dinamico aggiornato con i selettori corretti per i container con bordo di Streamlit
+st.markdown(
+    f"""
+    <style>
+        /* Modale avviso del giorno */
+        div[data-testid="stExpander"]:has(summary span:contains("Avviso del Giorno")) {{
+            position: fixed !important;
+            top: 25% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            z-index: 999999 !important;
+            width: 85% !important;
+            max-width: 600px !important;
+            box-shadow: 0px 15px 40px rgba(0,0,0,0.4) !important;
+            background-color: white !important;
+            border-radius: 12px !important;
+            border: 2px solid {stile_admin['bordo']} !important;
+        }}
+        
+        /* Forza il bordo e lo sfondo su tutti i container con bordo attivo */
+        div[data-testid="stContainer"] {{
+            border: 2px solid {stile_admin['bordo']} !important;
+            border-radius: 8px !important;
+            {'background-color: ' + stile_admin['sfondo'] + ' !important;' if stile_admin['attivo'] else ''}
+            padding: 10px !important;
+        }}
+    </style>
+    <head>
+        <link rel="manifest" href="manifest.json">
+        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=11">
+    </head>
+""",
+    unsafe_allow_html=True,
+)
     
     st.title("🐾 Menu Rapido")
     
