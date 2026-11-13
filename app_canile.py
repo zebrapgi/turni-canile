@@ -458,36 +458,6 @@ if is_weekend_o_venerdi_sera:
 def get_lista_volontari():
     return sorted(list(set(st.session_state.volontari_db)))
 
-# --- FUNZIONE SUGGERIMENTI DINAMICI (FINESTRA MOBILE ULTIME 4 SETTIMANE) ---
-def get_cani_frequenti_volontario(nome_volontario):
-    if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
-        return []
-    
-    turni_esistenti = carica_turni_normalizzati()
-    turni_ordinati_tempo = sorted(
-        turni_esistenti, 
-        key=lambda x: x.get("settimana_chiave", ""), 
-        reverse=True
-    )
-    
-    settimane_viste = set()
-    conteggio_cani = {}
-    
-    for t in turni_ordinati_tempo:
-        if t.get("volontario", "").strip().lower() == nome_volontario.strip().lower():
-            s_chiave = t.get("settimana_chiave", "")
-            settimane_viste.add(s_chiave)
-            
-            if len(settimane_viste) > 4:
-                break
-                
-            for c in t.get("cani_fatti", []):
-                if c in st.session_state.cani:
-                    conteggio_cani[c] = conteggio_cani.get(c, 0) + 1
-                    
-    cani_ordinati = sorted(conteggio_cani.items(), key=lambda x: x[1], reverse=True)
-    return [c[0] for c in cani_ordinati if c[1] >= 1]
-
 if menu == "📅 Inserisci":
     st.header("Gestione Turni")
 
@@ -577,14 +547,29 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-        cani_suggeriti = get_cani_frequenti_volontario(volontario_finale)
+        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI ---
+        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
+        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
+        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        
+        cani_abilitati_utente = []
+        for c in st.session_state.cani:
+            dettagli_c = st.session_state.cani_dettagli.get(c, {})
+            is_chiuso = dettagli_c.get("cane_chiuso", False)
+            is_gruppo = dettagli_c.get("gruppo_dedicato", False)
+            
+            if is_chiuso and c not in cani_chiusi_abilitati:
+                continue
+            if is_gruppo and c not in cani_gruppo_abilitati:
+                continue
+                
+            cani_abilitati_utente.append(c)
 
         col_cani_op1, col_cani_op2 = st.columns([1, 1])
         with col_cani_op1:
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
         with col_cani_op2:
-            if cani_suggeriti:
-                st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
+            st.caption("💡 Ti ho preselezionato i cani per cui sei abilitato.")
 
         if seleziona_tutti:
             cani_fatti = st.pills(
@@ -594,28 +579,16 @@ if menu == "📅 Inserisci":
                 selection_mode="multi",
                 key="pills_cani_tutti"
             )
-        elif cani_suggeriti:
-            default_validi = [c for c in cani_suggeriti if c in st.session_state.cani]
-            cani_fatti = st.pills(
-                "✅ Cani (i tuoi soliti sono già preselezionati):",
-                options=st.session_state.cani,
-                default=default_validi,
-                selection_mode="multi",
-                key="pills_cani_sugg"
-            )
         else:
             cani_fatti = st.pills(
-                "✅ Cani (clicca per selezionare):", 
+                "✅ Cani (i tuoi abilitati sono già preselezionati):", 
                 options=st.session_state.cani,
+                default=cani_abilitati_utente,
                 selection_mode="multi",
-                key="pills_cani_vuoto"
+                key="pills_cani_abilitati_default"
             )
 
         # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (ANTI-FURBETTI) ---
-        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
-        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
-        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
-        
         cani_non_autorizzati_selezionati = []
         for c in cani_fatti:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
@@ -752,22 +725,31 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        cani_suggeriti_m = get_cani_frequenti_volontario(volontario_finale)
-        default_validi_m = [c for c in cani_suggeriti_m if c in st.session_state.cani]
+        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO ---
+        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
+        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
+        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        
+        cani_abilitati_utente_m = []
+        for c in st.session_state.cani:
+            dettagli_c = st.session_state.cani_dettagli.get(c, {})
+            is_chiuso = dettagli_c.get("cane_chiuso", False)
+            is_gruppo = dettagli_c.get("gruppo_dedicato", False)
+            if is_chiuso and c not in cani_chiusi_abilitati:
+                continue
+            if is_gruppo and c not in cani_gruppo_abilitati:
+                continue
+            cani_abilitati_utente_m.append(c)
 
         cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
             options=st.session_state.cani,
-            default=default_validi_m,
+            default=cani_abilitati_utente_m,
             selection_mode="multi",
             key="pills_cani_multiplo"
         )
 
         # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (MULTIPLO) ---
-        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
-        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
-        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
-        
         cani_non_autorizzati_multiplo = []
         for c in cani_fatti_multiplo:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
