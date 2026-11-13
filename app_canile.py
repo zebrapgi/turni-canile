@@ -534,10 +534,27 @@ def get_cani_frequenti_volontario(nome_volontario):
         return []
     
     turni_esistenti = carica_turni_normalizzati()
+    
+    # Ordiniamo i turni dal più recente al più vecchio in base alla chiave della settimana (es. 2026-W45)
+    turni_ordinati_tempo = sorted(
+        turni_esistenti, 
+        key=lambda x: x.get("settimana_chiave", ""), 
+        reverse=True
+    )
+    
+    # Prendiamo solo le ultime 4 settimane di attività del volontario per evitare che vecchie abitudini rimangano fisse
+    settimane_viste = set()
     conteggio_cani = {}
     
-    for t in turni_esistenti:
+    for t in turni_ordinati_tempo:
         if t.get("volontario", "").strip().lower() == nome_volontario.strip().lower():
+            s_chiave = t.get("settimana_chiave", "")
+            settimane_viste.add(s_chiave)
+            
+            # Se abbiamo già analizzato 4 settimane diverse di quello storico, ci fermiamo
+            if len(settimane_viste) > 4:
+                break
+                
             for c in t.get("cani_fatti", []):
                 if c in st.session_state.cani:
                     conteggio_cani[c] = conteggio_cani.get(c, 0) + 1
