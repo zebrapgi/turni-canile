@@ -1138,61 +1138,63 @@ elif menu == "👀 Panoramica":
 elif menu == "🐶 Cani":
     st.header("🐾 Anagrafica e Mini-Schede Cani")
 
-    if st.session_state.is_admin:
-        with st.expander("➕ Aggiungi Nuovo Cane con Scheda Dettagliata", expanded=False):
-            with st.form("form_aggiungi_cane_completo"):
-                n_cane = st.text_input("Nome del cane:")
-                col_i1, col_i2 = st.columns(2)
-                with col_i1:
-                    sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
-                    
-                    st.markdown("**Data di nascita:**")
-                    c_g, c_m, c_a = st.columns(3)
-                    with c_g:
-                        giorno_n = st.selectbox("Giorno", list(range(1, 32)), index=0, key="novo_g")
-                    with c_m:
-                        mese_n = st.selectbox("Mese", list(range(1, 13)), index=0, key="novo_m")
-                    with c_a:
-                        anni_disponibili = list(range(datetime.now().year, 2004, -1))
-                        anno_n = st.selectbox("Anno", anni_disponibili, index=anni_disponibili.index(2012) if 2012 in anni_disponibili else 0, key="novo_a")
-                    
-                with col_i2:
-                    taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"])
-                    data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
+    @st.dialog("➕ Aggiungi Nuovo Cane")
+    def modale_aggiungi_cane():
+        n_cane = st.text_input("Nome del cane:")
+        col_i1, col_i2 = st.columns(2)
+        with col_i1:
+            sesso_cane = st.selectbox("Sesso:", ["Maschio", "Femmina"])
+            
+            st.markdown("**Data di nascita:**")
+            c_g, c_m, c_a = st.columns(3)
+            with c_g:
+                giorno_n = st.selectbox("Giorno", list(range(1, 32)), index=0, key="novo_g")
+            with c_m:
+                mese_n = st.selectbox("Mese", list(range(1, 13)), index=0, key="novo_m")
+            with c_a:
+                anni_disponibili = list(range(datetime.now().year, 2004, -1))
+                anno_n = st.selectbox("Anno", anni_disponibili, index=anni_disponibili.index(2012) if 2012 in anni_disponibili else 0, key="novo_a")
+            
+        with col_i2:
+            taglia_cane = st.selectbox("Taglia:", ["Piccola", "Media-contenuta", "Media", "Media-grande", "Grande"])
+            data_entrata_cane = st.date_input("Data di entrata in canile:", value=datetime.now().date())
+        
+        st.markdown("---")
+        st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
+        is_cane_chiuso_new = st.checkbox("🔒 Cane chiuso", key="novo_cane_chiuso")
+        is_gruppo_dedicato_new = st.checkbox("👥 Cani con gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
+        
+        if st.button("Salva Cane e Scheda 📝", use_container_width=True):
+            if n_cane.strip() and n_cane.strip() not in st.session_state.cani:
+                nome_pulito = n_cane.strip()
+                st.session_state.cani.append(nome_pulito)
+                db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
                 
-                st.markdown("---")
-                st.markdown("**⚙️ Impostazioni Gestione & Restrizioni:**")
-                is_cane_chiuso_new = st.checkbox("🔒 Cane chiuso", key="novo_cane_chiuso")
-                is_gruppo_dedicato_new = st.checkbox("👥 Cani con gruppo dedicato (es. Giada)", key="novo_gruppo_dedicato")
-                
-                btn_salva_nuovo_cane = st.form_submit_button("Salva Cane e Scheda 📝")
-                if btn_salva_nuovo_cane:
-                    if n_cane.strip() and n_cane.strip() not in st.session_state.cani:
-                        nome_pulito = n_cane.strip()
-                        st.session_state.cani.append(nome_pulito)
-                        db.collection("cani").document("lista").set({"elementi": st.session_state.cani})
-                        
-                        try:
-                            data_nascita_str = f"{giorno_n:02d}/{mese_n:02d}/{anno_n}"
-                        except:
-                            data_nascita_str = "01/01/2012"
+                try:
+                    data_nascita_str = f"{giorno_n:02d}/{mese_n:02d}/{anno_n}"
+                except:
+                    data_nascita_str = "01/01/2012"
 
-                        dettagli_nuovi = {
-                            "sesso": sesso_cane,
-                            "data_nascita": data_nascita_str,
-                            "taglia": taglia_cane,
-                            "data_entrata": data_entrata_cane.strftime("%d/%m/%Y"),
-                            "cane_chiuso": is_cane_chiuso_new,
-                            "gruppo_dedicato": is_gruppo_dedicato_new
-                        }
-                        st.session_state.cani_dettagli[nome_pulito] = dettagli_nuovi
-                        salva_su_firestore("cani_dettagli", nome_pulito, dettagli_nuovi)
-                        
-                        st.cache_data.clear()
-                        st.success(f"Cane '{nome_pulito}' aggiunto con successo!")
-                        st.rerun()
-                    elif n_cane.strip() in st.session_state.cani:
-                        st.warning("Questo cane è già presente nella lista.")
+                dettagli_nuovi = {
+                    "sesso": sesso_cane,
+                    "data_nascita": data_nascita_str,
+                    "taglia": taglia_cane,
+                    "data_entrata": data_entrata_cane.strftime("%d/%m/%Y"),
+                    "cane_chiuso": is_cane_chiuso_new,
+                    "gruppo_dedicato": is_gruppo_dedicato_new
+                }
+                st.session_state.cani_dettagli[nome_pulito] = dettagli_nuovi
+                salva_su_firestore("cani_dettagli", nome_pulito, dettagli_nuovi)
+                
+                st.cache_data.clear()
+                st.success(f"Cane '{nome_pulito}' aggiunto con successo!")
+                st.rerun()
+            elif n_cane.strip() in st.session_state.cani:
+                st.warning("Questo cane è già presente nella lista.")
+
+    if st.session_state.is_admin:
+        if st.button("➕ Aggiungi Nuovo Cane", type="primary"):
+            modale_aggiungi_cane()
 
     st.markdown("### Elenco Ospiti in Canile")
     if not st.session_state.cani:
@@ -1582,62 +1584,53 @@ elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
     st.header("📚 Archivio Storico delle Settimane Passate")
     
     tutti_i_turni = carica_turni_normalizzati()
-    
-    settimane_archivio_map = {}
-    for t in tutti_i_turni:
-        s_chiave = t.get("settimana_chiave", "")
-        s_label = t.get("settimana", "")
-        if s_chiave and s_chiave != chiave_corr and s_chiave != chiave_pros:
-            settimane_archivio_map[s_chiave] = s_label
 
-    chiavi_storiche_ordinate = sorted(list(settimane_archivio_map.keys()), reverse=True)
-
-    if not chiavi_storiche_ordinate:
+    if not tutti_i_turni:
         st.info("Nessun dato presente nell'archivio storico.")
     else:
-        storico_scelto_chiave = st.selectbox(
-            "Seleziona la settimana dall'archivio:",
-            options=chiavi_storiche_ordinate,
-            format_func=lambda x: settimane_archivio_map[x]
+        oggi = datetime.now(tz_italia).date()
+        inizio_default = oggi - timedelta(days=7)
+        
+        range_date = st.date_input(
+            "📅 Seleziona il periodo da controllare:",
+            value=(inizio_default, oggi),
+            format="DD/MM/YYYY"
         )
+        
+        if isinstance(range_date, tuple) and len(range_date) == 2:
+            data_inizio, data_fine = range_date
+            
+            turni_storico = []
+            for t in tutti_i_turni:
+                s_chiave = t.get("settimana_chiave", "")
+                try:
+                    anno_str, sett_str = s_chiave.split("-W")
+                    lunedi_rif = datetime.fromisocalendar(int(anno_str), int(sett_str), 1).date()
+                    
+                    giorni_offset = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"].index(t["giorno"])
+                    data_turno = lunedi_rif + timedelta(days=giorni_offset)
+                    
+                    if data_inizio <= data_turno <= data_fine:
+                        turni_storico.append((data_turno, t))
+                except:
+                    continue
 
-        turni_storico = [
-            t for t in tutti_i_turni if t.get("settimana_chiave") == storico_scelto_chiave
-        ]
-
-        giorni_settimana = [
-            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
-        ]
-
-        for giorno in giorni_settimana:
-            st.markdown(f"## 📌 {giorno}")
-            turni_giorno = [t for t in turni_storico if t["giorno"] == giorno]
-            col_m, col_p = st.columns(2)
-
-            def mostra_fascia_storica(fascia_nome, col_container):
-                with col_container:
-                    with st.container(border=True):
-                        st.markdown(f"### ☀️ {fascia_nome}")
-                        turni_fascia = [
-                            t for t in turni_giorno if t["fascia"] == fascia_nome
-                        ]
-
-                        if not turni_fascia:
-                            st.caption("Nessun volontario registrato in questa fascia.")
-                        else:
-                            st.markdown("**Volontari presenti:**")
-                            for t in turni_fascia:
-                                cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
-                                st.write(
-                                    f"• **{t['volontario']}** ({t['orario']}) - {cani_str}"
-                                )
-
-            with col_m:
-                mostra_fascia_storica("Mattina", col_m)
-            with col_p:
-                mostra_fascia_storica("Pomeriggio", col_p)
-
-            st.markdown("---")
+            if not turni_storico:
+                st.warning("Nessun turno trovato nel periodo selezionato.")
+            else:
+                turni_storico.sort(key=lambda x: x[0], reverse=True)
+                
+                data_corrente_mostrata = None
+                
+                for data_turno, t in turni_storico:
+                    if data_turno != data_corrente_mostrata:
+                        st.markdown(f"## 📌 {t['giorno']} ({data_turno.strftime('%d/%m/%Y')})")
+                        data_corrente_mostrata = data_turno
+                        
+                    cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
+                    st.write(f"• **{t['volontario']}** ({t['fascia']}, {t['orario']}) - {cani_str}")
+                    
+                st.markdown("---")
 
 elif menu == "🛠️ Gestione LPU (Admin)":
     st.header("🛠️ Gestione Lavori Socialmente Utili (LPU)")
