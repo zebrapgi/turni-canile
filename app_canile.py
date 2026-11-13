@@ -558,7 +558,7 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE AUTOMATICA DEI CANI ABILITATI ( CORRETTA & INCLUSIVA ) ---
+        # --- CALCOLO DINAMICO ABILITAZIONI E PRESELEZIONE ROBUSTA ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
         cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
         cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
@@ -570,17 +570,12 @@ if menu == "📅 Inserisci":
             is_gruppo = dettagli_c.get("gruppo_dedicato", False)
             c_lower = c.strip().lower()
             
-            # Se il cane non ha restrizioni speciali, viene incluso sempre
             if not is_chiuso and not is_gruppo:
                 cani_abilitati_utente.append(c)
                 continue
-                
-            # Se è un cane chiuso, viene incluso se il volontario ha l'abilitazione
             if is_chiuso and c_lower in cani_chiusi_abilitati:
                 cani_abilitati_utente.append(c)
                 continue
-                
-            # Se è un cane a gruppo dedicato, viene incluso se il volontario ha l'abilitazione
             if is_gruppo and c_lower in cani_gruppo_abilitati:
                 cani_abilitati_utente.append(c)
                 continue
@@ -589,7 +584,11 @@ if menu == "📅 Inserisci":
         with col_cani_op1:
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
         with col_cani_op2:
-            st.caption("💡 Ti ho preselezionato i cani normali più quelli speciali per cui sei abilitato.")
+            st.caption("💡")
+
+        # Uso di una chiave dinamica legata al volontario per forzare l'aggiornamento dei pills
+        safe_vol_key = volontario_finale.replace(" ", "_").lower() if volontario_finale else "default"
+        pill_key_singolo = f"pills_cani_abilitati_{safe_vol_key}"
 
         if seleziona_tutti:
             cani_fatti = st.pills(
@@ -605,7 +604,7 @@ if menu == "📅 Inserisci":
                 options=st.session_state.cani,
                 default=cani_abilitati_utente,
                 selection_mode="multi",
-                key="pills_cani_abilitati_default"
+                key=pill_key_singolo
             )
 
         # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (ANTI-FURBETTI) ---
@@ -746,7 +745,7 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO ( CORRETTA & INCLUSIVA ) ---
+        # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO (ROBUSTA) ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
         cani_chiusi_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_chiusi_abilitati", [])]
         cani_gruppo_abilitati = [c.strip().lower() for c in permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])]
@@ -768,12 +767,15 @@ if menu == "📅 Inserisci":
                 cani_abilitati_utente_m.append(c)
                 continue
 
+        safe_vol_key_m = volontario_finale.replace(" ", "_").lower() if volontario_finale else "default"
+        pill_key_multiplo = f"pills_cani_multiplo_{safe_vol_key_m}"
+
         cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
             options=st.session_state.cani,
             default=cani_abilitati_utente_m,
             selection_mode="multi",
-            key="pills_cani_multiplo"
+            key=pill_key_multiplo
         )
 
         # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (MULTIPLO) ---
