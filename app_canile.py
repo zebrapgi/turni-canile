@@ -11,10 +11,6 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# --- INIZIALIZZAZIONE SICURA STATO TEMA ---
-if "simulazione_tema" not in st.session_state:
-    st.session_state.simulazione_tema = "📅 Automatico (Nessun tema)"
-
 # --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA (TOML Nativo) ---
 if not firebase_admin._apps:
     try:
@@ -384,76 +380,9 @@ with st.sidebar:
             else:
                 is_weekend_o_venerdi_sera = is_weekend_reale
 
-            st.markdown("---")
-            st.selectbox(
-                "🎨 Simulazione Tema Grafico:",
-                [
-                    "📅 Automatico (Nessun tema)",
-                    "🎄 Tema Natale",
-                    "❄️ Tema Inverno",
-                    "🌸 Tema Primavera",
-                    "☀️ Tema Estate",
-                    "🍂 Tema Autunno"
-                ],
-                key="simulazione_tema"
-            )
-
             if st.button("🔒 Esci Admin", key="esci_admin_side"):
                 st.session_state.is_admin = False
                 st.rerun()
-
-# --- LOGICA TEMI GRAFICI STAGIONALI (APPLICATA DOPO LA SIDEBAR) ---
-def get_stile_admin():
-    sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico (Nessun tema)")
-    
-    if "Natale" in sim_tema:
-        return {"bordo": "#b22222", "sfondo": "#fff5f5", "attivo": True} # Bordeaux Natale
-    if "Inverno" in sim_tema:
-        return {"bordo": "#4682b4", "sfondo": "#f0f8ff", "attivo": True} # Blu ghiaccio
-    if "Primavera" in sim_tema:
-        return {"bordo": "#4caf50", "sfondo": "#f4fff4", "attivo": True} # Verde tenero
-    if "Estate" in sim_tema:
-        return {"bordo": "#ff8c00", "sfondo": "#fffaf0", "attivo": True} # Arancio solare
-    if "Autunno" in sim_tema:
-        return {"bordo": "#d2691e", "sfondo": "#fffaf5", "attivo": True} # Marrone autunnale
-        
-    return {"bordo": "rgba(49, 51, 63, 0.2)", "sfondo": "transparent", "attivo": False}
-
-stile_admin = get_stile_admin()
-
-st.markdown(
-    f"""
-    <style>
-        /* Modale avviso del giorno */
-        div[data-testid="stExpander"]:has(summary span:contains("Avviso del Giorno")) {{
-            position: fixed !important;
-            top: 25% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            z-index: 999999 !important;
-            width: 85% !important;
-            max-width: 600px !important;
-            box-shadow: 0px 15px 40px rgba(0,0,0,0.4) !important;
-            background-color: white !important;
-            border-radius: 12px !important;
-            border: 2px solid {stile_admin['bordo']} !important;
-        }}
-        
-        /* Stile mirato per i container (schede giorno/fascia e box principali) */
-        div[data-testid="stContainer"] {{
-            border: 2px solid {stile_admin['bordo']} !important;
-            border-radius: 8px !important;
-            {'background-color: ' + stile_admin['sfondo'] + ' !important;' if stile_admin['attivo'] else ''}
-            padding: 10px !important;
-        }}
-    </style>
-    <head>
-        <link rel="manifest" href="manifest.json">
-        <link rel="apple-touch-icon" href="https://github.com/lallag/turni-canile/blob/main/icona.jpg?raw=true&v=11">
-    </head>
-""",
-    unsafe_allow_html=True,
-)
 
 # --- INTESTAZIONE PRINCIPALE PULITA ---
 st.title("🐾 Turni Canile")
@@ -529,20 +458,18 @@ if is_weekend_o_venerdi_sera:
 def get_lista_volontari():
     return sorted(list(set(st.session_state.volontari_db)))
 
+# --- FUNZIONE SUGGERIMENTI DINAMICI (FINESTRA MOBILE ULTIME 4 SETTIMANE) ---
 def get_cani_frequenti_volontario(nome_volontario):
     if not nome_volontario or nome_volontario == "➕ Altro / Nuovo volontario" or nome_volontario == "-- Seleziona il tuo nome --":
         return []
     
     turni_esistenti = carica_turni_normalizzati()
-    
-    # Ordiniamo i turni dal più recente al più vecchio in base alla chiave della settimana (es. 2026-W45)
     turni_ordinati_tempo = sorted(
         turni_esistenti, 
         key=lambda x: x.get("settimana_chiave", ""), 
         reverse=True
     )
     
-    # Prendiamo solo le ultime 4 settimane di attività del volontario per evitare che vecchie abitudini rimangano fisse
     settimane_viste = set()
     conteggio_cani = {}
     
@@ -551,7 +478,6 @@ def get_cani_frequenti_volontario(nome_volontario):
             s_chiave = t.get("settimana_chiave", "")
             settimane_viste.add(s_chiave)
             
-            # Se abbiamo già analizzato 4 settimane diverse di quello storico, ci fermiamo
             if len(settimane_viste) > 4:
                 break
                 
@@ -662,27 +588,44 @@ if menu == "📅 Inserisci":
 
         if seleziona_tutti:
             cani_fatti = st.pills(
-                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):",
+                "✅ Cani (puoi selezionare quelli desiderati):",
                 options=st.session_state.cani,
                 default=st.session_state.cani,
                 selection_mode="multi",
                 key="pills_cani_tutti"
             )
         elif cani_suggeriti:
+            default_validi = [c for c in cani_suggeriti if c in st.session_state.cani]
             cani_fatti = st.pills(
-                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):",
+                "✅ Cani (i tuoi soliti sono già preselezionati):",
                 options=st.session_state.cani,
-                default=cani_suggeriti,
+                default=default_validi,
                 selection_mode="multi",
                 key="pills_cani_sugg"
             )
         else:
             cani_fatti = st.pills(
-                "✅ Cani che sei autorizzato a gestire (clicca per selezionare):", 
+                "✅ Cani (clicca per selezionare):", 
                 options=st.session_state.cani,
                 selection_mode="multi",
                 key="pills_cani_vuoto"
             )
+
+        # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (ANTI-FURBETTI) ---
+        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
+        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
+        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        
+        cani_non_autorizzati_selezionati = []
+        for c in cani_fatti:
+            dettagli_c = st.session_state.cani_dettagli.get(c, {})
+            if dettagli_c.get("cane_chiuso", False) and c not in cani_chiusi_abilitati:
+                cani_non_autorizzati_selezionati.append(c)
+            elif dettagli_c.get("gruppo_dedicato", False) and c not in cani_gruppo_abilitati:
+                cani_non_autorizzati_selezionati.append(c)
+
+        if cani_non_autorizzati_selezionati:
+            st.error(f"🚨 **ATTENZIONE:** Hai selezionato `{', '.join(cani_non_autorizzati_selezionati)}`, ma **non possiedi l'abilitazione** per gestirlo/i! Il sistema bloccherà la registrazione.")
 
         st.markdown("### 💬 3. Nota o Avviso Personale (Opzionale)")
         nota_personale_input = st.text_area(
@@ -809,12 +752,32 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
+        cani_suggeriti_m = get_cani_frequenti_volontario(volontario_finale)
+        default_validi_m = [c for c in cani_suggeriti_m if c in st.session_state.cani]
+
         cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
             options=st.session_state.cani,
+            default=default_validi_m,
             selection_mode="multi",
             key="pills_cani_multiplo"
         )
+
+        # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (MULTIPLO) ---
+        permessi_vol_corrente = st.session_state.volontari_permessi.get(volontario_finale, {})
+        cani_chiusi_abilitati = permessi_vol_corrente.get("cani_chiusi_abilitati", [])
+        cani_gruppo_abilitati = permessi_vol_corrente.get("cani_gruppo_dedicato_abilitati", [])
+        
+        cani_non_autorizzati_multiplo = []
+        for c in cani_fatti_multiplo:
+            dettagli_c = st.session_state.cani_dettagli.get(c, {})
+            if dettagli_c.get("cane_chiuso", False) and c not in cani_chiusi_abilitati:
+                cani_non_autorizzati_multiplo.append(c)
+            elif dettagli_c.get("gruppo_dedicato", False) and c not in cani_gruppo_abilitati:
+                cani_non_autorizzati_multiplo.append(c)
+
+        if cani_non_autorizzati_multiplo:
+            st.error(f"🚨 **ATTENZIONE:** Hai selezionato `{', '.join(cani_non_autorizzati_multiplo)}`, ma **non possiedi l'abilitazione** per gestirlo/i!")
 
         nota_multiplo_input = st.text_area(
             "Nota comune per i turni (Opzionale):",
