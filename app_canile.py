@@ -11,79 +11,69 @@ st.set_page_config(
     page_title="Gestione Turni Canile", page_icon="🐶", layout="wide"
 )
 
-# --- LOGICA TEMI E STILI DINAMICI ---
-def get_tema_corrente():
-    # Se l'admin sta simulando un tema specifico, usa quello
-    sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico")
-    if sim_tema != "📅 Automatico":
-        if "Natale" in sim_tema: return "natale"
-        if "Inverno" in sim_tema: return "inverno"
-        if "Primavera" in sim_tema: return "primavera"
-        if "Estate" in sim_tema: return "estate"
-        if "Autunno" in sim_tema: return "autunno"
-
-    # Altrimenti calcola in base alla data odierna
-    oggi = datetime.now(pytz.timezone("Europe/Rome")).date()
-    mese = oggi.month
-    giorno = oggi.day
+# --- LOGICA RESTYLING STAGIONALE (ATTIVO TRAMITE SIMULAZIONE ADMIN) ---
+def get_tema_admin():
+    sim_tema = st.session_state.get("simulazione_tema", "📅 Automatico (Reale)")
+    if "Natale" in sim_tema: return "natale"
+    if "Inverno" in sim_tema: return "inverno"
+    if "Primavera" in sim_tema: return "primavera"
+    if "Estate" in sim_tema: return "estate"
+    if "Autunno" in sim_tema: return "autunno"
     
-    # 🎄 Tema Natalizio: dal 20 novembre al 10 gennaio
-    if (mese == 11 and giorno >= 20) or (mese == 12) or (mese == 1 and giorno <= 10):
-        return "natale"
-    # ❄️ Tema Inverno: dall'11 gennaio al 28 febbraio
-    elif (mese == 1 and giorno >= 11) or (mese == 2):
-        return "inverno"
-    # 🌸 Tema Primavera: dal 1° marzo al 31 maggio
-    elif 3 <= mese <= 5:
-        return "primavera"
-    # ☀️ Tema Estate: dal 1° giugno al 15 settembre
-    elif 6 <= mese <= 8 or (mese == 9 and giorno <= 15):
-        return "estate"
-    # 🍂 Tema Autunno: dal 16 settembre al 19 novembre
-    else:
-        return "autunno"
+    # Se è impostato su Automatico, segue la data reale del calendario
+    oggi = datetime.now(pytz.timezone("Europe/Rome")).date()
+    m, g = oggi.month, oggi.day
+    if (m == 11 and g >= 20) or (m == 12) or (m == 1 and g <= 10): return "natale"
+    elif (m == 1 and g >= 11) or (m == 2): return "inverno"
+    elif 3 <= m <= 5: return "primavera"
+    elif 6 <= m <= 8 or (m == 9 and g <= 15): return "estate"
+    else: return "autunno"
 
-def get_decorazioni_tema(tema):
+def get_stile_tema(tema):
     if tema == "natale":
         return {
-            "icona": "🎄",
-            "banner": "❄️ Periodo Natalizio🐾🎁",
-            "bordo_colore": "#b22222", # Bordeaux caldo
-            "sfondo_card": "#fff9f9"
+            "nome": "Tema Natale 🎄",
+            "bordo": "#b22222",        # Rosso bordeaux caldo
+            "sfondo_banner": "#fff5f5",  # Rosso pastello chiarissimo
+            "testo_banner": "#8b0000",
+            "banner_msg": "🎄 Periodo Natalizio: Atmosfera calda e festiva per i turni in canile! 🎁"
         }
     elif tema == "inverno":
         return {
-            "icona": "❄️",
-            "banner": "❄️ Inverno 🐾",
-            "bordo_colore": "#4682b4", # Blu ghiaccio
-            "sfondo_card": "#f0f8ff"
+            "nome": "Tema Inverno ❄️",
+            "bordo": "#4682b4",        # Blu ghiaccio
+            "sfondo_banner": "#f0f8ff",  # Azzurro chiarissimo
+            "testo_banner": "#104e8b",
+            "banner_msg": "❄️ Pieno Inverno: Copriti bene e porta tanta energia ai nostri amici! 🐾"
         }
     elif tema == "primavera":
         return {
-            "icona": "🌸",
-            "banner": "🌱 Primavera 🐾",
-            "bordo_colore": "#4caf50", # Verde tenero
-            "sfondo_card": "#f4fff4"
+            "nome": "Tema Primavera 🌸",
+            "bordo": "#4caf50",        # Verde tenero
+            "sfondo_banner": "#f4fff4",  # Verde pastello chiarissimo
+            "testo_banner": "#2e7d32",
+            "banner_msg": "🌱 Primavera: I prati si risvegliano, pronti per splendide passeggiate! ☀️"
         }
     elif tema == "estate":
         return {
-            "icona": "☀️",
-            "banner": "☀️ Estate! 🐾",
-            "bordo_colore": "#ff8c00", # Arancio solare
-            "sfondo_card": "#fffaf0"
+            "nome": "Tema Estate ☀️",
+            "bordo": "#ff8c00",        # Arancio solare
+            "sfondo_banner": "#fffaf0",  # Giallino/arancio chiaro
+            "testo_banner": "#d35400",
+            "banner_msg": "☀️ Estate: Attenzione al caldo e tanta acqua fresca per tutti i cani! 💧"
         }
     else: # autunno
         return {
-            "icona": "🍂",
-            "banner": "🍂 Autunno! 🐾",
-            "bordo_colore": "#d2691e", # Marrone autunnale
-            "sfondo_card": "#fffaf5"
+            "nome": "Tema Autunno 🍂",
+            "bordo": "#d2691e",        # Marrone/terroso autunnale
+            "sfondo_banner": "#fffaf5",  # Crema autunnale
+            "testo_banner": "#8b4513",
+            "banner_msg": "🍂 Autunno: Splendidi colori caldi e aria frizzante per le uscite! 🐾"
         }
 
-tema_attivo = get_tema_corrente()
-decorazioni = get_decorazioni_tema(tema_attivo)
+stile_corrente = get_stile_tema(get_tema_admin())
 
-# CSS personalizzato con i colori del tema attivo
+# CSS personalizzato per applicare il restyling elegante dell'interfaccia
 st.markdown(
     f"""
     <style>
@@ -99,11 +89,11 @@ st.markdown(
             box-shadow: 0px 15px 40px rgba(0,0,0,0.4) !important;
             background-color: white !important;
             border-radius: 12px !important;
-            border: 2px solid {decorazioni['bordo_colore']} !important;
+            border: 2px solid {stile_corrente['bordo']} !important;
         }}
-        /* Personalizzazione bordi dei container in base al tema stagionale */
+        /* Bordi e stile dei container in base al tema stagionale attivo */
         div[data-testid="stVerticalBlock"] div[data-testid="stContainer"] {{
-            border-color: {decorazioni['bordo_colore']} !important;
+            border-color: {stile_corrente['bordo']} !important;
         }}
     </style>
     <head>
@@ -406,7 +396,7 @@ with st.sidebar:
     if os.path.exists("icona.jpg"):
         st.image("icona.jpg", width=80)
     
-    st.title(f"🐾 Menu Rapido {decorazioni['icona']}")
+    st.title("🐾 Menu Rapido")
     
     if st.button("🔄 Aggiorna Dati da Firebase"):
         st.cache_data.clear()
@@ -484,11 +474,10 @@ with st.sidebar:
                 is_weekend_o_venerdi_sera = is_weekend_reale
 
             st.markdown("---")
-            st.subheader("🎨 Test Temi Stagionali")
             st.selectbox(
-                "Simula Tema Grafico:",
+                "🎨 Simulazione Tema Stagionale:",
                 [
-                    "📅 Automatico",
+                    "📅 Automatico (Reale)",
                     "🎄 Tema Natale",
                     "❄️ Tema Inverno",
                     "🌸 Tema Primavera",
@@ -502,9 +491,19 @@ with st.sidebar:
                 st.session_state.is_admin = False
                 st.rerun()
 
-# --- INTESTAZIONE PRINCIPALE ---
-st.title(f"🐾 Turni Canile {decorazioni['icona']}")
-st.info(decorazioni['banner'])
+# --- INTESTAZIONE PRINCIPALE CON BANNER STAGIONALE ELEGANTE ---
+st.title("🐾 Turni Canile")
+
+st.markdown(
+    f"""
+    <div style="background-color: {stile_corrente['sfondo_banner']}; border-left: 6px solid {stile_corrente['bordo']}; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
+        <span style="color: {stile_corrente['testo_banner']}; font-weight: 600; font-size: 15px;">
+            {stile_corrente['banner_msg']} <span style="font-size: 12px; float: right; opacity: 0.7;">[{stile_corrente['nome']}]</span>
+        </span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 with st.container():
     turni_notifiche = carica_turni_normalizzati()
