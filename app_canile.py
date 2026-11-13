@@ -442,7 +442,6 @@ with st.container():
             if d_ent_date <= data_oggi_date:
                 cani_scoperti_oggi.append(c)
 
-    # Avviso unico centrale, in primo piano e chiuso automaticamente espandendolo o comprimendolo
     if len(turni_oggi) > 0 and cani_scoperti_oggi:
         with st.expander("🔔 Avviso del Giorno (Clicca per chiudere/aprire)", expanded=True):
             st.warning(f"⚠️ **Attenzione ({giorno_oggi_str}):** Ci sono cani senza volontari assegnati oggi: `{', '.join(cani_scoperti_oggi)}`")
@@ -535,7 +534,6 @@ if menu == "📅 Inserisci":
 
     st.markdown("---")
 
-    # --- SELETTORE MODALITÀ: SINGOLO O MULTIPLO ---
     modalita_inserimento = st.radio(
         "Modalità di inserimento:",
         ["Turno Singolo", "Inserimento Multiplo (Più giorni in un colpo)"],
@@ -601,7 +599,6 @@ if menu == "📅 Inserisci":
             if cani_suggeriti:
                 st.caption(f"💡 Suggerimento abitudini: {', '.join(cani_suggeriti)}")
 
-        # --- MODIFICA ST.PILLS ---
         if seleziona_tutti:
             cani_fatti = st.pills(
                 "✅ Cani che sei autorizzato a gestire (clicca per selezionare):",
@@ -704,7 +701,6 @@ if menu == "📅 Inserisci":
                             st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
 
     else:
-        # --- MODALITÀ INSERIMENTO MULTIPLO ---
         st.markdown("### 📅 Seleziona i giorni della settimana")
         tutti_i_giorni = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
         
@@ -752,7 +748,6 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-        # --- MODIFICA ST.PILLS ---
         cani_fatti_multiplo = st.pills(
             "✅ Cani gestiti in questi turni:", 
             options=st.session_state.cani,
@@ -839,6 +834,14 @@ if menu == "📅 Inserisci":
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
 
+    # --- NUOVO SELETTORE RAPIDO VISTA GIORNALIERA VS SETTIMANA ---
+    modalita_vista_panoramica = st.pills(
+        "Modalità di visualizzazione:",
+        ["📅 Settimana Completa", "🎯 Solo Oggi (In evidenza)"],
+        default="🎯 Solo Oggi (In evidenza)",
+        key="pills_modalita_panoramica"
+    )
+
     turni_attuali = carica_turni_normalizzati()
 
     if is_weekend_o_venerdi_sera:
@@ -872,22 +875,28 @@ elif menu == "👀 Panoramica":
 
     if st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari":
         vol_scelto = st.session_state["filtro_vol_side"]
-        turni_filtrati = [t for t in turni_filtrati if t.get("volontario") == vol_scelto]
+        turni_filtrati = [t for t in turni_filtrati if t.get("volontario"] == vol_scelto]
         st.info(f"🔍 Filtro attivo nella sidebar per il volontario: **{vol_scelto}**")
 
-    if not turni_filtrati:
+    giorni_settimana = [
+        "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
+    ]
+    giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+    giorno_oggi_str = giorni_map_ita[adesso.weekday()]
+
+    # --- APPLICAZIONE FILTRO "SOLO OGGI" ---
+    if modalita_vista_panoramica == "🎯 Solo Oggi (In evidenza)":
+        giorni_da_mostrare = [(adesso.weekday(), giorno_oggi_str)]
+        st.caption(f"📌 Stai visualizzando esclusivamente la giornata odierna: **{giorno_oggi_str}**")
+    else:
+        giorni_da_mostrare = [(idx, g) for idx, g in enumerate(giorni_settimana)]
+
+    if not turni_filtrati and modalita_vista_panoramica == "📅 Settimana Completa":
         st.info("Nessun turno trovato con i filtri selezionati per questo periodo.")
     else:
-        giorni_settimana = [
-            "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica",
-        ]
-
-        giorni_map_ita = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-        giorno_oggi_str = giorni_map_ita[adesso.weekday()]
-
-        for idx_g, giorno in enumerate(giorni_settimana):
+        for idx_g, giorno in giorni_da_mostrare:
             turni_giorno = [t for t in turni_filtrati if t["giorno"] == giorno]
-            if not turni_giorno and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
+            if not turni_giorno and modalita_vista_panoramica == "📅 Settimana Completa" and (st.session_state.get("filtro_cane_side", "Tutti i cani") != "Tutti i cani" or st.session_state.get("filtro_vol_side", "Tutti i volontari") != "Tutti i volontari"):
                 continue
                 
             data_giorno_corrente = lunedi_settimana_vista + timedelta(days=idx_g)
@@ -1087,7 +1096,6 @@ elif menu == "👀 Panoramica":
                                             
                                             nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
                                             
-                                            # --- MODIFICA ST.PILLS ---
                                             nuovi_cani = st.pills(
                                                 "Cani gestiti:",
                                                 options=st.session_state.cani,
@@ -1393,7 +1401,6 @@ elif menu == "👥 Volontari":
             with st.form(f"form_permessi_{vol_selezionato_perm}"):
                 st.markdown(f"**Abilitazioni per: {vol_selezionato_perm}**")
                 
-                # --- MODIFICA ST.PILLS ---
                 cani_chiusi_abilitati_scelti = st.pills(
                     "🔒 Cani chiusi ABILITATI alla gestione:",
                     options=cani_chiusi_disponibili,
