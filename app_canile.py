@@ -628,7 +628,7 @@ if menu == "📅 Inserisci":
         with col_cani_op1:
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
         with col_cani_op2:
-            st.caption("💡 Ti ho preselezionato i cani normali più quelli speciali per cui sei abilitato.")
+            st.caption("")
 
         safe_vol_key = volontario_finale.replace(" ", "_").lower() if volontario_finale else "default"
         pill_key_singolo = f"pills_cani_abilitati_{safe_vol_key}"
