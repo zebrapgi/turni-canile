@@ -403,7 +403,7 @@ with st.sidebar:
     st.markdown("---")
 
     with st.expander("🔒 Area Admin", expanded=False):
-        ADMIN_PASSWORD_CORRETTA = st.secrets.get("ADMIN_PASSWORD", "canile2026")
+        ADMIN_PASSWORD_CORRETTA = st.secrets.get("ADMIN_PASSWORD")
         if not st.session_state.is_admin:
             with st.form("form_login_admin_side"):
                 pwd_input = st.text_input("Password:", type="password", key="pwd_side")
