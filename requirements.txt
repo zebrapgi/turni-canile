@@ -1,4 +1,4 @@
-streamlit
-pandas
-pytz
-firebase-admin
+streamlit>=1.38.0,<2.0.0
+pandas>=2.2.0,<3.0.0
+pytz>=2024.1
+firebase-admin>=6.5.0,<7.0.0
