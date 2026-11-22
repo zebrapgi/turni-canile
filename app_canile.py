@@ -197,6 +197,49 @@ def valida_e_salva_turno(volontario_selezionato, cani_selezionati):
             
     return True
 
+# --- FUNZIONE VALIDAZIONE COERENZA ORARIA (INIZIO E FINE RISPETTO ALLA FASCIA) ---
+def valida_coerenza_orario(fascia_scelta, ora_in, ora_out=None, senza_fine_flag=False):
+    if not senza_fine_flag and ora_out is not None:
+        if ora_out <= ora_in:
+            return False, "❌ **Errore orario:** L'orario di fine deve essere successivo all'orario di inizio."
+
+    if fascia_scelta == "Mattina":
+        if ora_in >= time(13, 0):
+            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 13:00 in poi)."
+        if not senza_fine_flag and ora_out is not None and ora_out > time(14, 0):
+            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di fine supera le 14:00. Se copri anche il pomeriggio, registra due turni separati."
+    elif fascia_scelta == "Pomeriggio":
+        if ora_in < time(12, 0):
+            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 12:00)."
+        if not senza_fine_flag and ora_out is not None and ora_out <= time(13, 0):
+            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Pomeriggio**, ma l'orario di fine è entro le 13:00."
+
+    return True, ""
+
+# --- PARSING ORARIO SALVATO PER POPOLARE LA MODIFICA ---
+def estrai_orari_da_stringa(orario_str, fascia_fallback="Mattina"):
+    def_in = time(8, 30) if fascia_fallback == "Mattina" else time(14, 30)
+    def_out = time(12, 0) if fascia_fallback == "Mattina" else time(18, 0)
+    if not orario_str:
+        return def_in, def_out, False
+    testo = orario_str.strip()
+    if testo.startswith("Dalle "):
+        try:
+            parte = testo.replace("Dalle ", "").strip()
+            t_in = datetime.strptime(parte, "%H:%M").time()
+            return t_in, def_out, True
+        except Exception:
+            return def_in, def_out, True
+    if "-" in testo:
+        try:
+            parti = testo.split("-")
+            t_in = datetime.strptime(parti[0].strip(), "%H:%M").time()
+            t_out = datetime.strptime(parti[1].strip(), "%H:%M").time()
+            return t_in, t_out, False
+        except Exception:
+            return def_in, def_out, False
+    return def_in, def_out, False
+
 # --- GESTIONE ORARIO ITALIANO ESATTO ---
 tz_italia = pytz.timezone("Europe/Rome")
 adesso = datetime.now(tz_italia)
@@ -547,6 +590,7 @@ if menu == "📅 Inserisci":
             
             senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
 
+            ora_fine = None
             with col_ora2:
                 if not senza_fine:
                     ora_fine = st.time_input("A:", value=default_fine, key=f"ora_fine_dinamica_{fascia}")
@@ -584,7 +628,7 @@ if menu == "📅 Inserisci":
         with col_cani_op1:
             seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
         with col_cani_op2:
-            st.caption("")
+            st.caption("💡 Ti ho preselezionato i cani normali più quelli speciali per cui sei abilitato.")
 
         safe_vol_key = volontario_finale.replace(" ", "_").lower() if volontario_finale else "default"
         pill_key_singolo = f"pills_cani_abilitati_{safe_vol_key}"
@@ -606,7 +650,7 @@ if menu == "📅 Inserisci":
                 key=pill_key_singolo
             )
 
-        # --- CONTROLLO IN TEMPO REALE ABILITAZIONI (ANTI-FURBETTI) ---
+        # --- CONTROLLO IN TEMPO REALE ABILITAZIONI ---
         cani_non_autorizzati_selezionati = []
         for c in cani_fatti:
             dettagli_c = st.session_state.cani_dettagli.get(c, {})
@@ -629,23 +673,11 @@ if menu == "📅 Inserisci":
         submit_button = st.button(label="Registra Turno 🚀", key="btn_submit_turno")
 
         if submit_button:
-            ora_limite_divisione = time(13, 0)  # Soglia fissa alle 13:00 tra mattina e pomeriggio
-            errore_fascia = False
-            
-            if fascia == "Mattina" and ora_inizio >= ora_limite_divisione:
-                msg = "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 13:00 in poi)."
-                st.toast(msg, icon="🚨")
-                st.error(msg)
-                errore_fascia = True
-            elif fascia == "Pomeriggio" and ora_inizio < ora_limite_divisione:
-                # Permettiamo tolleranza per chi inizia un po' prima (es. 12:30), ma blocchiamo se inserisce orari proprio mattutini (es. 08:30)
-                if ora_inizio < time(12, 0):
-                    msg = "❌ **Errore di coerenza:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 12:00)."
-                    st.toast(msg, icon="🚨")
-                    st.error(msg)
-                    errore_fascia = True
-
-            if not errore_fascia:
+            orario_valido, msg_orario = valida_coerenza_orario(fascia, ora_inizio, ora_fine, senza_fine)
+            if not orario_valido:
+                st.toast(msg_orario, icon="🚨")
+                st.error(msg_orario)
+            else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome."
                     st.toast(msg, icon="⚠️")
@@ -731,13 +763,14 @@ if menu == "📅 Inserisci":
             st.markdown(f"**Orario per {fascia_multiplo}:**")
             col_ora1_m, col_ora2_m = st.columns(2)
             with col_ora1_m:
-                ora_inizio_m = st.time_input("Da:", value=def_i_m, key="ora_inizio_multiplo")
+                ora_inizio_m = st.time_input("Da:", value=def_i_m, key=f"ora_inizio_multiplo_{fascia_multiplo}")
             
             senza_fine_m = st.checkbox("Senza orario di fine", key="senza_fine_multiplo")
 
+            ora_fine_m = None
             with col_ora2_m:
                 if not senza_fine_m:
-                    ora_fine_m = st.time_input("A:", value=def_f_m, key="ora_fine_multiplo")
+                    ora_fine_m = st.time_input("A:", value=def_f_m, key=f"ora_fine_multiplo_{fascia_multiplo}")
                 else:
                     st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
             
@@ -801,21 +834,11 @@ if menu == "📅 Inserisci":
         submit_multiplo = st.button(label="Registra Tutti i Turni in Blocco 🚀", key="btn_submit_multiplo")
 
         if submit_multiplo:
-            ora_limite_divisione = time(13, 0)
-            errore_fascia_m = False
-            
-            if fascia_multiplo == "Mattina" and ora_inizio_m >= ora_limite_divisione:
-                msg = "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano."
-                st.toast(msg, icon="🚨")
-                st.error(msg)
-                errore_fascia_m = True
-            elif fascia_multiplo == "Pomeriggio" and ora_inizio_m < time(12, 0):
-                msg = "❌ **Errore di coerenza:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino."
-                st.toast(msg, icon="🚨")
-                st.error(msg)
-                errore_fascia_m = True
-
-            if not errore_fascia_m:
+            orario_valido_m, msg_orario_m = valida_coerenza_orario(fascia_multiplo, ora_inizio_m, ora_fine_m, senza_fine_m)
+            if not orario_valido_m:
+                st.toast(msg_orario_m, icon="🚨")
+                st.error(msg_orario_m)
+            else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome in alto prima di registrare."
                     st.toast(msg, icon="⚠️")
@@ -885,6 +908,90 @@ if menu == "📅 Inserisci":
 
 elif menu == "👀 Panoramica":
     st.header("Gestione Turni e Copertura")
+
+    # --- FINESTRA MODALE PER MODIFICA TOTALE DEL TURNO ---
+    @st.dialog("✏️ Modifica Completa Turno", width="large")
+    def modale_modifica_turno(turno_da_modificare):
+        t_id = turno_da_modificare["id"]
+        vol_nome = turno_da_modificare["volontario"]
+        giorni_lista = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        
+        st.markdown(f"**Volontario:** 👤 {vol_nome}")
+        
+        col_dg1, col_dg2 = st.columns(2)
+        with col_dg1:
+            idx_g = giorni_lista.index(turno_da_modificare.get("giorno")) if turno_da_modificare.get("giorno") in giorni_lista else 0
+            nuovo_giorno = st.selectbox("Giorno della settimana:", giorni_lista, index=idx_g, key=f"dlg_giorno_{t_id}")
+        with col_dg2:
+            fascia_att = turno_da_modificare.get("fascia", "Mattina")
+            idx_f = 0 if fascia_att == "Mattina" else 1
+            nuova_fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"], index=idx_f, key=f"dlg_fascia_{t_id}")
+
+        # Recupera gli orari reali già salvati nel turno
+        ora_in_salv, ora_out_salv, senza_fine_salv = estrai_orari_da_stringa(
+            turno_da_modificare.get("orario", ""), fascia_att
+        )
+
+        # Se l'admin cambia fascia nella finestra, aggiorna ai default della nuova fascia solo se incoerenti
+        if nuova_fascia != fascia_att:
+            if nuova_fascia == "Mattina" and ora_in_salv >= time(13, 0):
+                ora_in_salv, ora_out_salv = time(8, 30), time(12, 0)
+            elif nuova_fascia == "Pomeriggio" and ora_in_salv < time(12, 0):
+                ora_in_salv, ora_out_salv = time(14, 30), time(18, 0)
+
+        st.markdown("**Orario del turno:**")
+        col_do1, col_do2 = st.columns(2)
+        with col_do1:
+            m_inizio = st.time_input("Da:", value=ora_in_salv, key=f"dlg_in_{t_id}_{nuova_fascia}")
+        
+        m_senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", value=senza_fine_salv, key=f"dlg_sf_{t_id}")
+        
+        m_fine = None
+        with col_do2:
+            if not m_senza_fine:
+                m_fine = st.time_input("A:", value=ora_out_salv, key=f"dlg_out_{t_id}_{nuova_fascia}")
+            else:
+                st.markdown("<br><i>Nessun limite</i>", unsafe_allow_html=True)
+
+        nuovo_orario_str = f"Dalle {m_inizio.strftime('%H:%M')}" if m_senza_fine else f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
+
+        nuovi_cani = st.pills(
+            "🐾 Cani gestiti:",
+            options=st.session_state.cani,
+            default=[c for c in turno_da_modificare.get("cani_fatti", []) if c in st.session_state.cani],
+            selection_mode="multi",
+            key=f"dlg_cani_{t_id}"
+        )
+
+        nuova_nota = st.text_area("💬 Nota personale:", value=turno_da_modificare.get("note", ""), key=f"dlg_nota_{t_id}")
+
+        if st.button("Salva Modifiche Turno ✅", type="primary", use_container_width=True, key=f"dlg_save_{t_id}"):
+            orario_ok, msg_err_orario = valida_coerenza_orario(nuova_fascia, m_inizio, m_fine, m_senza_fine)
+            if not orario_ok:
+                st.error(msg_err_orario)
+            elif not nuovi_cani:
+                st.error("❌ Errore: seleziona almeno un cane.")
+            elif not valida_e_salva_turno(vol_nome, nuovi_cani):
+                pass
+            else:
+                # Aggiorna anche l'etichetta della settimana se è cambiato il giorno
+                s_chiave_curr = turno_da_modificare.get("settimana_chiave", chiave_corr)
+                s_label_curr = info_sett.get(s_chiave_curr, turno_da_modificare.get("settimana", label_corr))
+
+                t_aggiornato = {
+                    "id": t_id,
+                    "settimana": s_label_curr,
+                    "settimana_chiave": s_chiave_curr,
+                    "volontario": vol_nome,
+                    "giorno": nuovo_giorno,
+                    "fascia": nuova_fascia,
+                    "orario": nuovo_orario_str,
+                    "cani_fatti": nuovi_cani,
+                    "note": nuova_nota.strip()
+                }
+                salva_su_firestore("turni", t_id, t_aggiornato)
+                st.toast("Turno modificato con successo!", icon="✅")
+                st.rerun()
 
     modalita_vista_panoramica = st.pills(
         "Modalità di visualizzazione:",
@@ -1103,8 +1210,7 @@ elif menu == "👀 Panoramica":
                                                 f"✏️ Modifica ({t['volontario']})",
                                                 key=f"mod_btn_{giorno}_{fascia_nome}_{t['id']}",
                                             ):
-                                                st.session_state[f"editing_{t['id']}"] = not st.session_state.get(f"editing_{t['id']}", False)
-                                                st.rerun()
+                                                modale_modifica_turno(t)
                                         else:
                                             st.caption("*(LPU)*")
                                     
@@ -1129,53 +1235,8 @@ elif menu == "👀 Panoramica":
                                                         elimina_da_firestore("turni_lpu", original_lpu_id)
 
                                                 elimina_da_firestore("turni", t['id'])
-                                                if f"editing_{t['id']}" in st.session_state:
-                                                    del st.session_state[f"editing_{t['id']}"]
                                                 st.success("Turno eliminato!")
                                                 st.rerun()
-
-                                    if not t['id'].startswith("lpu_") and st.session_state.get(f"editing_{t['id']}", False):
-                                        with st.form(key=f"form_mod_{t['id']}"):
-                                            st.subheader(f"Modifica Turno di {t['volontario']}")
-                                            
-                                            col_m1, col_m2 = st.columns(2)
-                                            with col_m1:
-                                                m_inizio = st.time_input("Ora Inizio:", value=time(8, 30), key=f"min_{t['id']}")
-                                            with col_m2:
-                                                m_fine = st.time_input("Ora Fine:", value=time(12, 0), key=f"mfin_{t['id']}")
-                                            
-                                            nuovo_orario = f"{m_inizio.strftime('%H:%M')} - {m_fine.strftime('%H:%M')}"
-                                            
-                                            nuovi_cani = st.pills(
-                                                "Cani gestiti:",
-                                                options=st.session_state.cani,
-                                                default=[c for c in t.get("cani_fatti", []) if c in st.session_state.cani],
-                                                selection_mode="multi",
-                                                key=f"cani_mod_{t['id']}"
-                                            )
-                                            
-                                            nuova_nota_mod = st.text_area("Nota personale:", value=t.get("note", ""), key=f"nota_mod_{t['id']}")
-
-                                            btn_salva_mod = st.form_submit_button("Salva Modifiche ✅")
-                                            if btn_salva_mod:
-                                                if not nuovi_cani:
-                                                    st.error("Errore: seleziona almeno un cane.")
-                                                else:
-                                                    t_aggiornato = {
-                                                        "id": t["id"],
-                                                        "settimana": t["settimana"],
-                                                        "settimana_chiave": t.get("settimana_chiave", chiave_corr),
-                                                        "volontario": t["volontario"],
-                                                        "giorno": t["giorno"],
-                                                        "fascia": t["fascia"],
-                                                        "orario": nuovo_orario,
-                                                        "cani_fatti": nuovi_cani,
-                                                        "note": nuova_nota_mod.strip()
-                                                    }
-                                                    salva_su_firestore("turni", t["id"], t_aggiornato)
-                                                    st.session_state[f"editing_{t['id']}"] = False
-                                                    st.success("Turno modificato con successo!")
-                                                    st.rerun()
 
                             st.markdown("---")
                             st.markdown("**Cani scoperti:**")
