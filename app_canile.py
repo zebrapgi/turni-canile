@@ -616,7 +616,7 @@ if menu == "📅 Inserisci":
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
 
-            # --- OPZIONE DISCRETA: ORARIO CONTINUATO ANCHE AL POMERIGGIO ---
+            # --- OPZIONE DISCRETA: ORARIO CONTINUATO CON ORARIO DI FINE POMERIGGIO ---
             if fascia == "Mattina":
                 prosegui_pome = st.checkbox(
                     "🔄 Proseguo anche al pomeriggio (orario continuato)",
@@ -624,18 +624,23 @@ if menu == "📅 Inserisci":
                     key="chk_continuato_singolo"
                 )
                 if prosegui_pome:
-                    st.caption("Ti inserirò automaticamente anche nel Pomeriggio di questo giorno.")
-                    senza_fine_pome_cont = st.checkbox(
-                        "Pomeriggio senza orario di fine",
-                        value=True,
-                        key="chk_sf_pome_cont_singolo"
-                    )
-                    if not senza_fine_pome_cont:
-                        ora_fine_pome_cont = st.time_input(
-                            "Fine turno pomeridiano:",
-                            value=time(18, 0),
-                            key="ora_fine_pome_cont_singolo"
+                    st.caption("Ti inserirò anche nel Pomeriggio (dalle 14:30) con l'orario di fine indicato:")
+                    col_fp1, col_fp2 = st.columns(2)
+                    with col_fp1:
+                        senza_fine_pome_cont = st.checkbox(
+                            "Senza fine al pome",
+                            value=False,
+                            key="chk_sf_pome_cont_singolo"
                         )
+                    with col_fp2:
+                        if not senza_fine_pome_cont:
+                            ora_fine_pome_cont = st.time_input(
+                                "Fine turno pome:",
+                                value=time(18, 0),
+                                key="ora_fine_pome_cont_singolo"
+                            )
+                        else:
+                            st.caption("Nessun limite")
 
         # --- CALCOLO DINAMICO ABILITAZIONI E PRESELEZIONE ROBUSTA ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
@@ -659,31 +664,16 @@ if menu == "📅 Inserisci":
                 cani_abilitati_utente.append(c)
                 continue
 
-        col_cani_op1, col_cani_op2 = st.columns([1, 1])
-        with col_cani_op1:
-            seleziona_tutti = st.checkbox("🐾 Seleziona TUTTI i cani", key="seleziona_tutti_dinamico")
-        with col_cani_op2:
-            st.caption("")
-
         safe_vol_key = volontario_finale.replace(" ", "_").lower() if volontario_finale else "default"
         pill_key_singolo = f"pills_cani_abilitati_{safe_vol_key}"
 
-        if seleziona_tutti:
-            cani_fatti = st.pills(
-                "✅ Cani (puoi selezionare quelli desiderati):",
-                options=st.session_state.cani,
-                default=st.session_state.cani,
-                selection_mode="multi",
-                key="pills_cani_tutti"
-            )
-        else:
-            cani_fatti = st.pills(
-                "✅ Cani (i tuoi abilitati sono già preselezionati):", 
-                options=st.session_state.cani,
-                default=cani_abilitati_utente,
-                selection_mode="multi",
-                key=pill_key_singolo
-            )
+        cani_fatti = st.pills(
+            "✅ Cani (i tuoi abilitati sono già preselezionati):", 
+            options=st.session_state.cani,
+            default=cani_abilitati_utente,
+            selection_mode="multi",
+            key=pill_key_singolo
+        )
 
         # --- CONTROLLO IN TEMPO REALE ABILITAZIONI ---
         cani_non_autorizzati_selezionati = []
@@ -867,7 +857,7 @@ if menu == "📅 Inserisci":
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
 
-            # --- OPZIONE DISCRETA: ORARIO CONTINUATO ANCHE NEL MULTIPLO ---
+            # --- OPZIONE DISCRETA: ORARIO CONTINUATO CON ORARIO DI FINE POMERIGGIO ---
             if fascia_multiplo == "Mattina":
                 prosegui_pome_m = st.checkbox(
                     "🔄 Proseguo anche al pomeriggio (orario continuato)",
@@ -875,18 +865,23 @@ if menu == "📅 Inserisci":
                     key="chk_continuato_multiplo"
                 )
                 if prosegui_pome_m:
-                    st.caption("Ti inserirò automaticamente anche nel Pomeriggio per tutti i giorni scelti.")
-                    senza_fine_pome_cont_m = st.checkbox(
-                        "Pomeriggio senza orario di fine",
-                        value=True,
-                        key="chk_sf_pome_cont_multiplo"
-                    )
-                    if not senza_fine_pome_cont_m:
-                        ora_fine_pome_cont_m = st.time_input(
-                            "Fine turno pomeridiano:",
-                            value=time(18, 0),
-                            key="ora_fine_pome_cont_multiplo"
+                    st.caption("Ti inserirò anche nel Pomeriggio (dalle 14:30) con l'orario di fine indicato:")
+                    col_fpm1, col_fpm2 = st.columns(2)
+                    with col_fpm1:
+                        senza_fine_pome_cont_m = st.checkbox(
+                            "Senza fine al pome",
+                            value=False,
+                            key="chk_sf_pome_cont_multiplo"
                         )
+                    with col_fpm2:
+                        if not senza_fine_pome_cont_m:
+                            ora_fine_pome_cont_m = st.time_input(
+                                "Fine turno pome:",
+                                value=time(18, 0),
+                                key="ora_fine_pome_cont_multiplo"
+                            )
+                        else:
+                            st.caption("Nessun limite")
 
         # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO (ROBUSTA) ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
@@ -1075,12 +1070,10 @@ elif menu == "👀 Panoramica":
             idx_f = 0 if fascia_att == "Mattina" else 1
             nuova_fascia = st.selectbox("Fascia oraria:", ["Mattina", "Pomeriggio"], index=idx_f, key=f"dlg_fascia_{t_id}")
 
-        # Recupera gli orari reali già salvati nel turno
         ora_in_salv, ora_out_salv, senza_fine_salv = estrai_orari_da_stringa(
             turno_da_modificare.get("orario", ""), fascia_att
         )
 
-        # Se l'admin cambia fascia nella finestra, aggiorna ai default della nuova fascia solo se incoerenti
         if nuova_fascia != fascia_att:
             if nuova_fascia == "Mattina" and ora_in_salv >= time(13, 0):
                 ora_in_salv, ora_out_salv = time(8, 30), time(12, 0)
