@@ -207,7 +207,7 @@ def valida_coerenza_orario(fascia_scelta, ora_in, ora_out=None, senza_fine_flag=
         if ora_in >= time(13, 0):
             return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di inizio è pomeridiano (dalle 13:00 in poi)."
         if not senza_fine_flag and ora_out is not None and ora_out > time(14, 0):
-            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di fine supera le 14:00. Se copri anche il pomeriggio, registra due turni separati."
+            return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Mattina**, ma l'orario di fine supera le 14:00. Se copri anche il pomeriggio, usa la spunta 'Proseguo anche al pomeriggio' o registra due turni."
     elif fascia_scelta == "Pomeriggio":
         if ora_in < time(12, 0):
             return False, "❌ **Errore di coerenza:** Hai scelto la fascia **Pomeriggio**, ma l'orario di inizio è mattutino (prima delle 12:00)."
@@ -239,6 +239,15 @@ def estrai_orari_da_stringa(orario_str, fascia_fallback="Mattina"):
         except Exception:
             return def_in, def_out, False
     return def_in, def_out, False
+
+# --- FORMATTAZIONE ETICHETTA TURNO CONTINUATO ---
+def formatta_badge_continuato(turno_dict):
+    tipo_cont = turno_dict.get("continuato_ruolo", "")
+    if tipo_cont == "mattina_prosegue":
+        return " `🔄 prosegue al pome`"
+    elif tipo_cont == "pomeriggio_collegato":
+        return " `🔄 dalla mattina`"
+    return ""
 
 # --- GESTIONE ORARIO ITALIANO ESATTO ---
 tz_italia = pytz.timezone("Europe/Rome")
@@ -386,8 +395,9 @@ with st.sidebar:
                     
                     s_key = tp.get("settimana_chiave", tp.get("settimana"))
                     s_label = info_sett.get(s_key, tp.get("settimana"))
+                    badge_cont = " (Continuato)" if tp.get("continuato_ruolo") else ""
                     
-                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
+                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')}{badge_cont})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
                     st.markdown("---")
 
     st.markdown("---")
@@ -581,6 +591,10 @@ if menu == "📅 Inserisci":
         st.markdown("### 🕒 2. Dettagli Turno e Cani")
         col1, col2 = st.columns(2)
 
+        prosegui_pome = False
+        ora_fine_pome_cont = time(18, 0)
+        senza_fine_pome_cont = False
+
         with col1:
             st.markdown(f"**Orario per {fascia}:**")
 
@@ -601,6 +615,27 @@ if menu == "📅 Inserisci":
                 orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
             else:
                 orario = f"{ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}"
+
+            # --- OPZIONE DISCRETA: ORARIO CONTINUATO ANCHE AL POMERIGGIO ---
+            if fascia == "Mattina":
+                prosegui_pome = st.checkbox(
+                    "🔄 Proseguo anche al pomeriggio (orario continuato)",
+                    value=False,
+                    key="chk_continuato_singolo"
+                )
+                if prosegui_pome:
+                    st.caption("Ti inserirò automaticamente anche nel Pomeriggio di questo giorno.")
+                    senza_fine_pome_cont = st.checkbox(
+                        "Pomeriggio senza orario di fine",
+                        value=True,
+                        key="chk_sf_pome_cont_singolo"
+                    )
+                    if not senza_fine_pome_cont:
+                        ora_fine_pome_cont = st.time_input(
+                            "Fine turno pomeridiano:",
+                            value=time(18, 0),
+                            key="ora_fine_pome_cont_singolo"
+                        )
 
         # --- CALCOLO DINAMICO ABILITAZIONI E PRESELEZIONE ROBUSTA ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
@@ -677,6 +712,10 @@ if menu == "📅 Inserisci":
             if not orario_valido:
                 st.toast(msg_orario, icon="🚨")
                 st.error(msg_orario)
+            elif prosegui_pome and not senza_fine_pome_cont and ora_fine_pome_cont <= time(14, 30):
+                msg_err_p = "❌ **Errore orario pomeriggio:** L'orario di fine del pomeriggio deve essere successivo alle 14:30."
+                st.toast(msg_err_p, icon="🚨")
+                st.error(msg_err_p)
             else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome."
@@ -705,12 +744,29 @@ if menu == "📅 Inserisci":
                         for t in lista_turni
                     )
 
+                    doppione_pome_cont = False
+                    if prosegui_pome:
+                        doppione_pome_cont = any(
+                            t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                            t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
+                            t.get("giorno") == giorno and
+                            t.get("fascia") == "Pomeriggio"
+                            for t in lista_turni
+                        )
+
                     if doppione_trovato:
                         msg = f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} ({fascia}) in questa settimana!"
                         st.toast(msg, icon="⚠️")
                         st.error(msg)
+                    elif doppione_pome_cont:
+                        msg = f"⚠️ **Attenzione:** {volontario_finale} risulta già registrato per {giorno} (Pomeriggio) in questa settimana!"
+                        st.toast(msg, icon="⚠️")
+                        st.error(msg)
                     else:
-                        id_turno = str(datetime.now().timestamp())
+                        base_ts = str(datetime.now().timestamp())
+                        id_turno = base_ts
+                        gruppo_id = f"cont_{base_ts}" if prosegui_pome else ""
+
                         nuovo_turno = {
                             "id": id_turno,
                             "settimana": settimana_scelta_label,
@@ -722,10 +778,38 @@ if menu == "📅 Inserisci":
                             "cani_fatti": cani_fatti,
                             "note": nota_personale_input.strip(),
                         }
+                        if prosegui_pome:
+                            nuovo_turno["gruppo_continuato_id"] = gruppo_id
+                            nuovo_turno["continuato_ruolo"] = "mattina_prosegue"
+
                         try:
                             db.collection("turni").document(id_turno).set(nuovo_turno)
+
+                            if prosegui_pome:
+                                id_turno_pome = f"{base_ts}_pome"
+                                orario_pome_str = "Dalle 14:30" if senza_fine_pome_cont else f"14:30 - {ora_fine_pome_cont.strftime('%H:%M')}"
+                                nuovo_turno_pome = {
+                                    "id": id_turno_pome,
+                                    "settimana": settimana_scelta_label,
+                                    "settimana_chiave": settimana_scelta_chiave,
+                                    "volontario": volontario_finale,
+                                    "giorno": giorno,
+                                    "fascia": "Pomeriggio",
+                                    "orario": orario_pome_str,
+                                    "cani_fatti": cani_fatti,
+                                    "note": nota_personale_input.strip(),
+                                    "gruppo_continuato_id": gruppo_id,
+                                    "continuato_ruolo": "pomeriggio_collegato",
+                                }
+                                db.collection("turni").document(id_turno_pome).set(nuovo_turno_pome)
+
                             st.cache_data.clear()
-                            st.toast(f"Turno registrato con successo per {volontario_finale}!", icon="🎉")
+                            msg_ok = (
+                                f"Turno continuato (Mattina + Pomeriggio) registrato per {volontario_finale}!"
+                                if prosegui_pome
+                                else f"Turno registrato con successo per {volontario_finale}!"
+                            )
+                            st.toast(msg_ok, icon="🎉")
                             st.rerun()
                         except Exception as e:
                             st.error(f"ERRORE DI SCRITTURA FIREBASE: {e}")
@@ -759,6 +843,10 @@ if menu == "📅 Inserisci":
         st.markdown("### 🕒 Dettagli Orario e Cani Comuni")
         col_m1, col_m2 = st.columns(2)
 
+        prosegui_pome_m = False
+        ora_fine_pome_cont_m = time(18, 0)
+        senza_fine_pome_cont_m = False
+
         with col_m1:
             st.markdown(f"**Orario per {fascia_multiplo}:**")
             col_ora1_m, col_ora2_m = st.columns(2)
@@ -778,6 +866,27 @@ if menu == "📅 Inserisci":
                 orario_multiplo = f"Dalle {ora_inizio_m.strftime('%H:%M')}"
             else:
                 orario_multiplo = f"{ora_inizio_m.strftime('%H:%M')} - {ora_fine_m.strftime('%H:%M')}"
+
+            # --- OPZIONE DISCRETA: ORARIO CONTINUATO ANCHE NEL MULTIPLO ---
+            if fascia_multiplo == "Mattina":
+                prosegui_pome_m = st.checkbox(
+                    "🔄 Proseguo anche al pomeriggio (orario continuato)",
+                    value=False,
+                    key="chk_continuato_multiplo"
+                )
+                if prosegui_pome_m:
+                    st.caption("Ti inserirò automaticamente anche nel Pomeriggio per tutti i giorni scelti.")
+                    senza_fine_pome_cont_m = st.checkbox(
+                        "Pomeriggio senza orario di fine",
+                        value=True,
+                        key="chk_sf_pome_cont_multiplo"
+                    )
+                    if not senza_fine_pome_cont_m:
+                        ora_fine_pome_cont_m = st.time_input(
+                            "Fine turno pomeridiano:",
+                            value=time(18, 0),
+                            key="ora_fine_pome_cont_multiplo"
+                        )
 
         # --- PRESELEZIONE ABILITAZIONI PER MULTIPLO (ROBUSTA) ---
         permessi_vol_corrente = ottieni_permessi_volontario(volontario_finale)
@@ -838,6 +947,10 @@ if menu == "📅 Inserisci":
             if not orario_valido_m:
                 st.toast(msg_orario_m, icon="🚨")
                 st.error(msg_orario_m)
+            elif prosegui_pome_m and not senza_fine_pome_cont_m and ora_fine_pome_cont_m <= time(14, 30):
+                msg_err_pm = "❌ **Errore orario pomeriggio:** L'orario di fine del pomeriggio deve essere successivo alle 14:30."
+                st.toast(msg_err_pm, icon="🚨")
+                st.error(msg_err_pm)
             else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome in alto prima di registrare."
@@ -874,10 +987,23 @@ if menu == "📅 Inserisci":
                             for t in lista_turni
                         )
 
-                        if doppione:
+                        doppione_pome_m = False
+                        if prosegui_pome_m:
+                            doppione_pome_m = any(
+                                t.get("volontario", "").strip().lower() == volontario_normalizzato and
+                                t.get("settimana_chiave", t.get("settimana")) == settimana_scelta_chiave and
+                                t.get("giorno") == giorno_m and
+                                t.get("fascia") == "Pomeriggio"
+                                for t in lista_turni
+                            )
+
+                        if doppione or doppione_pome_m:
                             turni_saltati.append(giorno_m)
                         else:
-                            id_turno = str(datetime.now().timestamp()) + f"_{giorno_m[:3]}"
+                            base_ts_m = str(datetime.now().timestamp()) + f"_{giorno_m[:3]}"
+                            id_turno = base_ts_m
+                            gruppo_id_m = f"cont_{base_ts_m}" if prosegui_pome_m else ""
+
                             nuovo_turno = {
                                 "id": id_turno,
                                 "settimana": settimana_scelta_label,
@@ -889,17 +1015,39 @@ if menu == "📅 Inserisci":
                                 "cani_fatti": cani_fatti_multiplo,
                                 "note": nota_multiplo_input.strip(),
                             }
+                            if prosegui_pome_m:
+                                nuovo_turno["gruppo_continuato_id"] = gruppo_id_m
+                                nuovo_turno["continuato_ruolo"] = "mattina_prosegue"
+
                             try:
                                 db.collection("turni").document(id_turno).set(nuovo_turno)
                                 turni_inseriti_count += 1
+
+                                if prosegui_pome_m:
+                                    id_turno_pome_m = f"{base_ts_m}_pome"
+                                    orario_pome_str_m = "Dalle 14:30" if senza_fine_pome_cont_m else f"14:30 - {ora_fine_pome_cont_m.strftime('%H:%M')}"
+                                    nuovo_turno_pome_m = {
+                                        "id": id_turno_pome_m,
+                                        "settimana": settimana_scelta_label,
+                                        "settimana_chiave": settimana_scelta_chiave,
+                                        "volontario": volontario_finale,
+                                        "giorno": giorno_m,
+                                        "fascia": "Pomeriggio",
+                                        "orario": orario_pome_str_m,
+                                        "cani_fatti": cani_fatti_multiplo,
+                                        "note": nota_multiplo_input.strip(),
+                                        "gruppo_continuato_id": gruppo_id_m,
+                                        "continuato_ruolo": "pomeriggio_collegato",
+                                    }
+                                    db.collection("turni").document(id_turno_pome_m).set(nuovo_turno_pome_m)
                             except Exception as e:
                                 st.error(f"Errore su {giorno_m}: {e}")
 
                     st.cache_data.clear()
                     if turni_inseriti_count > 0:
-                        st.toast(f"Registrati con successo {turni_inseriti_count} turni in blocco!", icon="🎉")
+                        st.toast(f"Registrati con successo {turni_inseriti_count} giorni in blocco!", icon="🎉")
                     if turni_saltati:
-                        msg_saltati = f"⚠️ Alcuni giorni sono stati saltati perché avevi già un turno registrato in quella fascia: `{', '.join(turni_saltati)}`"
+                        msg_saltati = f"⚠️ Alcuni giorni sono stati saltati perché avevi già un turno registrato: `{', '.join(turni_saltati)}`"
                         st.toast(msg_saltati, icon="⚠️")
                         st.warning(msg_saltati)
                     
@@ -974,7 +1122,6 @@ elif menu == "👀 Panoramica":
             elif not valida_e_salva_turno(vol_nome, nuovi_cani):
                 pass
             else:
-                # Aggiorna anche l'etichetta della settimana se è cambiato il giorno
                 s_chiave_curr = turno_da_modificare.get("settimana_chiave", chiave_corr)
                 s_label_curr = info_sett.get(s_chiave_curr, turno_da_modificare.get("settimana", label_corr))
 
@@ -989,6 +1136,11 @@ elif menu == "👀 Panoramica":
                     "cani_fatti": nuovi_cani,
                     "note": nuova_nota.strip()
                 }
+                if turno_da_modificare.get("gruppo_continuato_id"):
+                    t_aggiornato["gruppo_continuato_id"] = turno_da_modificare["gruppo_continuato_id"]
+                if turno_da_modificare.get("continuato_ruolo"):
+                    t_aggiornato["continuato_ruolo"] = turno_da_modificare["continuato_ruolo"]
+
                 salva_su_firestore("turni", t_id, t_aggiornato)
                 st.toast("Turno modificato con successo!", icon="✅")
                 st.rerun()
@@ -1194,8 +1346,10 @@ elif menu == "👀 Panoramica":
                                 else:
                                     dettaglio_mostra = "🧹 *Pulizie / LPU*"
 
+                                badge_cont_str = formatta_badge_continuato(t)
+
                                 st.write(
-                                    f"• **{t['volontario']}** ({t['orario']}) {dettaglio_mostra}"
+                                    f"• **{t['volontario']}** ({t['orario']}){badge_cont_str} {dettaglio_mostra}"
                                 )
 
                                 nota_singolo = t.get("note", "")
@@ -1216,27 +1370,41 @@ elif menu == "👀 Panoramica":
                                     
                                     with col_del:
                                         with st.popover(f"🗑️ Elimina", key=f"del_pop_{t['id']}"):
-                                            st.write("Eliminare questo turno?")
-                                            if st.button("Conferma 🛑", key=f"conf_del_{t['id']}"):
-                                                if t['id'].startswith("lpu_"):
-                                                    original_lpu_id = t['id'].replace("lpu_", "")
-                                                    tutti_lpu = carica_da_firestore_live("turni_lpu", [])
-                                                    lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
-                                                    
-                                                    if lpu_trovato:
-                                                        nome_lp = lpu_trovato.get("lpu")
-                                                        ore_storno = lpu_trovato.get("ore", 0.0)
-                                                        if nome_lp in st.session_state.lpu_data:
-                                                            st.session_state.lpu_data[nome_lp]["ore_fatte"] = max(
-                                                                0.0, st.session_state.lpu_data[nome_lp]["ore_fatte"] - ore_storno
-                                                            )
-                                                            salva_su_firestore("lpu_data", nome_lp, st.session_state.lpu_data[nome_lp])
+                                            gruppo_cont = t.get("gruppo_continuato_id", "")
+                                            if gruppo_cont:
+                                                st.write("Turno continuato collegato:")
+                                                if st.button("Elimina solo questa fascia", key=f"conf_del_solo_{t['id']}"):
+                                                    elimina_da_firestore("turni", t['id'])
+                                                    st.success("Fascia eliminata!")
+                                                    st.rerun()
+                                                if st.button("Elimina tutta la giornata 🛑", key=f"conf_del_tutto_{t['id']}"):
+                                                    collegati = [item for item in turni_attuali if item.get("gruppo_continuato_id") == gruppo_cont]
+                                                    for item_c in collegati:
+                                                        elimina_da_firestore("turni", item_c["id"])
+                                                    st.success("Turno continuato eliminato!")
+                                                    st.rerun()
+                                            else:
+                                                st.write("Eliminare questo turno?")
+                                                if st.button("Conferma 🛑", key=f"conf_del_{t['id']}"):
+                                                    if t['id'].startswith("lpu_"):
+                                                        original_lpu_id = t['id'].replace("lpu_", "")
+                                                        tutti_lpu = carica_da_firestore_live("turni_lpu", [])
+                                                        lpu_trovato = next((item for item in tutti_lpu if item.get("id") == original_lpu_id), None)
                                                         
-                                                        elimina_da_firestore("turni_lpu", original_lpu_id)
+                                                        if lpu_trovato:
+                                                            nome_lp = lpu_trovato.get("lpu")
+                                                            ore_storno = lpu_trovato.get("ore", 0.0)
+                                                            if nome_lp in st.session_state.lpu_data:
+                                                                st.session_state.lpu_data[nome_lp]["ore_fatte"] = max(
+                                                                    0.0, st.session_state.lpu_data[nome_lp]["ore_fatte"] - ore_storno
+                                                                )
+                                                                salva_su_firestore("lpu_data", nome_lp, st.session_state.lpu_data[nome_lp])
+                                                            
+                                                            elimina_da_firestore("turni_lpu", original_lpu_id)
 
-                                                elimina_da_firestore("turni", t['id'])
-                                                st.success("Turno eliminato!")
-                                                st.rerun()
+                                                    elimina_da_firestore("turni", t['id'])
+                                                    st.success("Turno eliminato!")
+                                                    st.rerun()
 
                             st.markdown("---")
                             st.markdown("**Cani scoperti:**")
@@ -1759,7 +1927,8 @@ elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
                         data_corrente_mostrata = data_turno
                         
                     cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
-                    st.write(f"• **{t['volontario']}** ({t['fascia']}, {t['orario']}) - {cani_str}")
+                    badge_cont_arch = formatta_badge_continuato(t)
+                    st.write(f"• **{t['volontario']}** ({t['fascia']}, {t['orario']}){badge_cont_arch} - {cani_str}")
                     
                 st.markdown("---")
 
