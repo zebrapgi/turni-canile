@@ -12,8 +12,8 @@ st.set_page_config(
 )
 
 # --- INIZIALIZZAZIONE FIREBASE FIRESTORE SICURA (TOML Nativo) ---
-if not firebase_admin._apps:
-    try:
+try:
+    if not firebase_admin._apps:
         raw_secrets = st.secrets["FIREBASE_JSON"]
         cred_dict = {
             "type": raw_secrets["type"],
@@ -26,16 +26,17 @@ if not firebase_admin._apps:
             "token_uri": raw_secrets["token_uri"],
             "auth_provider_x509_cert_url": raw_secrets["auth_provider_x509_cert_url"],
             "client_x509_cert_url": raw_secrets["client_x509_cert_url"],
-            "universe_domain": raw_secrets.get("universe_domain", "googleapis.com")
+            "universe_domain": raw_secrets.get("universe_domain", "googleapis.com"),
         }
-        
         cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"Errore di connessione a Firebase: {e}")
-        st.stop()
+        firebase_app = firebase_admin.initialize_app(cred)
+    else:
+        firebase_app = firebase_admin.get_app()
 
-db = firestore.client()
+    db = firestore.client(app=firebase_app)
+except Exception as e:
+    st.error(f"Errore di connessione a Firebase: {e}")
+    st.stop()
 
 # --- FUNZIONI DI GESTIONE DATABASE FIRESTORE CON CACHE OTTIMIZZATA ---
 @st.cache_data(ttl=600)
@@ -240,13 +241,33 @@ def estrai_orari_da_stringa(orario_str, fascia_fallback="Mattina"):
             return def_in, def_out, False
     return def_in, def_out, False
 
-# --- FORMATTAZIONE ETICHETTA TURNO CONTINUATO ---
+# --- FORMATTAZIONE ORARIO E BADGE TURNO CONTINUATO ---
+def formatta_orario_mostra(turno_dict):
+    orario_raw = str(turno_dict.get("orario", "")).strip()
+    tipo_cont = turno_dict.get("continuato_ruolo", "")
+
+    if tipo_cont == "pomeriggio_collegato":
+        if orario_raw.startswith("Dalle "):
+            return "Prosegue senza orario di fine"
+        if "-" in orario_raw:
+            ora_fine_p = orario_raw.split("-")[-1].strip()
+            return f"Fino alle {ora_fine_p}"
+        return orario_raw
+
+    if tipo_cont == "mattina_prosegue":
+        if "-" in orario_raw:
+            ora_inizio_m = orario_raw.split("-")[0].strip()
+            return f"Dalle {ora_inizio_m}"
+        return orario_raw
+
+    return orario_raw
+
 def formatta_badge_continuato(turno_dict):
     tipo_cont = turno_dict.get("continuato_ruolo", "")
     if tipo_cont == "mattina_prosegue":
-        return " `🔄 prosegue al pome`"
+        return " `🔄 continuato`"
     elif tipo_cont == "pomeriggio_collegato":
-        return " `🔄 dalla mattina`"
+        return " `🔄 continuato`"
     return ""
 
 # --- GESTIONE ORARIO ITALIANO ESATTO ---
@@ -396,8 +417,9 @@ with st.sidebar:
                     s_key = tp.get("settimana_chiave", tp.get("settimana"))
                     s_label = info_sett.get(s_key, tp.get("settimana"))
                     badge_cont = " (Continuato)" if tp.get("continuato_ruolo") else ""
+                    orario_mostra_side = formatta_orario_mostra(tp)
                     
-                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')}{badge_cont})<br>⏰ {tp.get('orario')}<br>{dettaglio_str}", unsafe_allow_html=True)
+                    st.markdown(f"• **{s_label}**<br>📅 {tp.get('giorno')} ({tp.get('fascia')}{badge_cont})<br>⏰ {orario_mostra_side}<br>{dettaglio_str}", unsafe_allow_html=True)
                     st.markdown("---")
 
     st.markdown("---")
@@ -624,7 +646,7 @@ if menu == "📅 Inserisci":
                     key="chk_continuato_singolo"
                 )
                 if prosegui_pome:
-                    st.caption("Ti inserirò anche nel Pomeriggio (dalle 14:30) con l'orario di fine indicato:")
+                    st.caption("Continuerai nel Pomeriggio con l'orario di fine indicato:")
                     col_fp1, col_fp2 = st.columns(2)
                     with col_fp1:
                         senza_fine_pome_cont = st.checkbox(
@@ -795,7 +817,7 @@ if menu == "📅 Inserisci":
 
                             st.cache_data.clear()
                             msg_ok = (
-                                f"Turno continuato (Mattina + Pomeriggio) registrato per {volontario_finale}!"
+                                f"Turno continuato registrato per {volontario_finale}!"
                                 if prosegui_pome
                                 else f"Turno registrato con successo per {volontario_finale}!"
                             )
@@ -865,7 +887,7 @@ if menu == "📅 Inserisci":
                     key="chk_continuato_multiplo"
                 )
                 if prosegui_pome_m:
-                    st.caption("Ti inserirò anche nel Pomeriggio (dalle 14:30) con l'orario di fine indicato:")
+                    st.caption("Continuerai nel Pomeriggio con l'orario di fine indicato:")
                     col_fpm1, col_fpm2 = st.columns(2)
                     with col_fpm1:
                         senza_fine_pome_cont_m = st.checkbox(
@@ -1339,10 +1361,11 @@ elif menu == "👀 Panoramica":
                                 else:
                                     dettaglio_mostra = "🧹 *Pulizie / LPU*"
 
+                                orario_mostra_str = formatta_orario_mostra(t)
                                 badge_cont_str = formatta_badge_continuato(t)
 
                                 st.write(
-                                    f"• **{t['volontario']}** ({t['orario']}){badge_cont_str} {dettaglio_mostra}"
+                                    f"• **{t['volontario']}** ({orario_mostra_str}){badge_cont_str} {dettaglio_mostra}"
                                 )
 
                                 nota_singolo = t.get("note", "")
@@ -1920,8 +1943,9 @@ elif menu in ["📚 Archivio", "📚 Archivio Settimane"]:
                         data_corrente_mostrata = data_turno
                         
                     cani_str = ", ".join(t["cani_fatti"]) if t.get("cani_fatti") else "🧹 Pulizie / LPU"
+                    orario_mostra_arch = formatta_orario_mostra(t)
                     badge_cont_arch = formatta_badge_continuato(t)
-                    st.write(f"• **{t['volontario']}** ({t['fascia']}, {t['orario']}){badge_cont_arch} - {cani_str}")
+                    st.write(f"• **{t['volontario']}** ({t['fascia']}, {orario_mostra_arch}){badge_cont_arch} - {cani_str}")
                     
                 st.markdown("---")
 
