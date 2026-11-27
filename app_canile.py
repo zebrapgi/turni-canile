@@ -603,6 +603,7 @@ if menu == "📅 Inserisci":
         col1, col2 = st.columns(2)
 
         prosegui_pome = False
+        ora_fine_pome_cont = time(18, 0)
         senza_fine_pome_cont = False
 
         with col1:
@@ -625,11 +626,24 @@ if menu == "📅 Inserisci":
                 with col_ora2:
                     st.markdown("<br><i>Continua al pomeriggio</i>", unsafe_allow_html=True)
                 orario = f"Dalle {ora_inizio.strftime('%H:%M')}"
-                senza_fine_pome_cont = st.checkbox(
-                    "Senza fine al pomeriggio",
-                    value=False,
-                    key="chk_sf_pome_cont_singolo"
-                )
+
+                st.caption("A che ora finisci al pomeriggio?")
+                col_fp1, col_fp2 = st.columns(2)
+                with col_fp1:
+                    senza_fine_pome_cont = st.checkbox(
+                        "Senza fine al pome",
+                        value=False,
+                        key="chk_sf_pome_cont_singolo"
+                    )
+                with col_fp2:
+                    if not senza_fine_pome_cont:
+                        ora_fine_pome_cont = st.time_input(
+                            "Fine turno pome:",
+                            value=time(18, 0),
+                            key="ora_fine_pome_cont_singolo"
+                        )
+                    else:
+                        st.caption("Nessun limite")
             else:
                 senza_fine = st.checkbox("Senza orario di fine (da quest'ora in poi)", key="senza_fine_dinamico")
                 ora_fine = None
@@ -704,6 +718,10 @@ if menu == "📅 Inserisci":
             if not orario_valido:
                 st.toast(msg_orario, icon="🚨")
                 st.error(msg_orario)
+            elif prosegui_pome and not senza_fine_pome_cont and ora_fine_pome_cont <= time(14, 30):
+                msg_err_p = "❌ **Errore orario pomeriggio:** L'orario di fine del pomeriggio deve essere successivo alle 14:30."
+                st.toast(msg_err_p, icon="🚨")
+                st.error(msg_err_p)
             else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome dal menu a tendina o scrivi il tuo nome e cognome."
@@ -775,7 +793,7 @@ if menu == "📅 Inserisci":
 
                             if prosegui_pome:
                                 id_turno_pome = f"{base_ts}_pome"
-                                orario_pome_str = "Dalle 14:30" if senza_fine_pome_cont else "14:30 - 18:00"
+                                orario_pome_str = "Dalle 14:30" if senza_fine_pome_cont else f"14:30 - {ora_fine_pome_cont.strftime('%H:%M')}"
                                 nuovo_turno_pome = {
                                     "id": id_turno_pome,
                                     "settimana": settimana_scelta_label,
@@ -832,6 +850,7 @@ if menu == "📅 Inserisci":
         col_m1, col_m2 = st.columns(2)
 
         prosegui_pome_m = False
+        ora_fine_pome_cont_m = time(18, 0)
         senza_fine_pome_cont_m = False
 
         with col_m1:
@@ -854,11 +873,24 @@ if menu == "📅 Inserisci":
                 with col_ora2_m:
                     st.markdown("<br><i>Continua al pomeriggio</i>", unsafe_allow_html=True)
                 orario_multiplo = f"Dalle {ora_inizio_m.strftime('%H:%M')}"
-                senza_fine_pome_cont_m = st.checkbox(
-                    "Senza fine al pomeriggio",
-                    value=False,
-                    key="chk_sf_pome_cont_multiplo"
-                )
+
+                st.caption("A che ora finisci al pomeriggio?")
+                col_fpm1, col_fpm2 = st.columns(2)
+                with col_fpm1:
+                    senza_fine_pome_cont_m = st.checkbox(
+                        "Senza fine al pome",
+                        value=False,
+                        key="chk_sf_pome_cont_multiplo"
+                    )
+                with col_fpm2:
+                    if not senza_fine_pome_cont_m:
+                        ora_fine_pome_cont_m = st.time_input(
+                            "Fine turno pome:",
+                            value=time(18, 0),
+                            key="ora_fine_pome_cont_multiplo"
+                        )
+                    else:
+                        st.caption("Nessun limite")
             else:
                 senza_fine_m = st.checkbox("Senza orario di fine", key="senza_fine_multiplo")
                 ora_fine_m = None
@@ -932,6 +964,10 @@ if menu == "📅 Inserisci":
             if not orario_valido_m:
                 st.toast(msg_orario_m, icon="🚨")
                 st.error(msg_orario_m)
+            elif prosegui_pome_m and not senza_fine_pome_cont_m and ora_fine_pome_cont_m <= time(14, 30):
+                msg_err_pm = "❌ **Errore orario pomeriggio:** L'orario di fine del pomeriggio deve essere successivo alle 14:30."
+                st.toast(msg_err_pm, icon="🚨")
+                st.error(msg_err_pm)
             else:
                 if not volontario_finale:
                     msg = "⚠️ Per favore, seleziona il tuo nome in alto prima di registrare."
@@ -1006,7 +1042,7 @@ if menu == "📅 Inserisci":
 
                                 if prosegui_pome_m:
                                     id_turno_pome_m = f"{base_ts_m}_pome"
-                                    orario_pome_str_m = "Dalle 14:30" if senza_fine_pome_cont_m else "14:30 - 18:00"
+                                    orario_pome_str_m = "Dalle 14:30" if senza_fine_pome_cont_m else f"14:30 - {ora_fine_pome_cont_m.strftime('%H:%M')}"
                                     nuovo_turno_pome_m = {
                                         "id": id_turno_pome_m,
                                         "settimana": settimana_scelta_label,
